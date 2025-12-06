@@ -11,7 +11,7 @@ function emailWrapper(content: string, preheader?: string) {
   <meta name="color-scheme" content="light dark">
   <meta name="supported-color-schemes" content="light dark">
   ${preheader ? `<meta name="description" content="${preheader}">` : ""}
-  <title>Game Aggregator</title>
+  <title>Autopilot</title>
   <style>
     body {
       margin: 0;
@@ -97,13 +97,13 @@ function emailWrapper(content: string, preheader?: string) {
 <body>
   <div class="container">
     <div class="header">
-      <div class="logo">🎮 Game Aggregator</div>
+      <div class="logo">🎮 Autopilot</div>
     </div>
     ${content}
     <div class="footer">
-      <p>This email was sent from Game Aggregator</p>
+      <p>This email was sent from Autopilot</p>
       <p>If you didn't request this, please ignore this email.</p>
-      <p>&copy; ${new Date().getFullYear()} Game Aggregator. All rights reserved.</p>
+      <p>&copy; ${new Date().getFullYear()} Autopilot. All rights reserved.</p>
     </div>
   </div>
 </body>
@@ -117,7 +117,7 @@ export function signInOTPTemplate(otp: string, expiresInMinutes: number = 5) {
     <div class="content">
       <h1>🔐 Sign In to Your Account</h1>
       <p>Hello!</p>
-      <p>You requested a one-time password to sign in to your Game Aggregator account.</p>
+      <p>You requested a one-time password to sign in to your Autopilot account.</p>
       <p class="highlight">Your verification code is:</p>
       <div class="otp-code">${otp}</div>
       <div class="warning">
@@ -132,11 +132,14 @@ export function signInOTPTemplate(otp: string, expiresInMinutes: number = 5) {
 }
 
 // Email Verification Email
-export function emailVerificationTemplate(otp: string, expiresInMinutes: number = 5) {
+export function emailVerificationTemplate(
+  otp: string,
+  expiresInMinutes: number = 5
+) {
   const content = `
     <div class="content">
       <h1>✉️ Verify Your Email Address</h1>
-      <p>Welcome to Game Aggregator!</p>
+      <p>Welcome to Autopilot!</p>
       <p>To complete your registration and start playing, please verify your email address.</p>
       <p class="highlight">Your verification code is:</p>
       <div class="otp-code">${otp}</div>
@@ -152,12 +155,15 @@ export function emailVerificationTemplate(otp: string, expiresInMinutes: number 
 }
 
 // Password Reset Email
-export function passwordResetTemplate(otp: string, expiresInMinutes: number = 5) {
+export function passwordResetTemplate(
+  otp: string,
+  expiresInMinutes: number = 5
+) {
   const content = `
     <div class="content">
       <h1>🔑 Reset Your Password</h1>
       <p>Hello!</p>
-      <p>You requested to reset your password for your Game Aggregator account.</p>
+      <p>You requested to reset your password for your Autopilot account.</p>
       <p class="highlight">Your password reset code is:</p>
       <div class="otp-code">${otp}</div>
       <div class="warning">
@@ -175,33 +181,35 @@ export function passwordResetTemplate(otp: string, expiresInMinutes: number = 5)
 export function welcomeEmailTemplate(name: string) {
   const content = `
     <div class="content">
-      <h1>🎉 Welcome to Game Aggregator!</h1>
+      <h1>🎉 Welcome to AutoPilot!</h1>
       <p>Hi ${name},</p>
-      <p>Thank you for joining Game Aggregator! We're excited to have you as part of our gaming community.</p>
+      <p>Thank you for joining AutoPilot! We're excited to have you as part of our community.</p>
       <p class="highlight">Here's what you can do now:</p>
       <ul style="color: #a1a1aa; line-height: 1.8;">
-        <li>Play <strong>Rock Paper Scissors</strong> and test your luck</li>
-        <li>Challenge the <strong>Quick Draw Showdown</strong> with Algorand staking</li>
         <li>Manage your profile in the dashboard</li>
-        <li>Compete with other players</li>
+        <li>Stop your Boring Repetitive Tasks</li>
       </ul>
       <div style="text-align: center;">
-        <a href="${env.BETTER_AUTH_URL}/dashboard" class="button">Go to Dashboard</a>
+        <a href="${env.BETTER_AUTH_URL}/" class="button">Go to Dashboard</a>
       </div>
       <p>If you have any questions, feel free to reach out to our support team.</p>
       <p>Happy gaming! 🎮</p>
     </div>
   `;
 
-  return emailWrapper(content, "Welcome to Game Aggregator!");
+  return emailWrapper(content, "Welcome to Autopilot!");
 }
 
 // Account Security Alert
-export function securityAlertTemplate(action: string, ipAddress?: string, userAgent?: string) {
+export function securityAlertTemplate(
+  action: string,
+  ipAddress?: string,
+  userAgent?: string
+) {
   const content = `
     <div class="content">
       <h1>🛡️ Security Alert</h1>
-      <p>We detected a security-related action on your Game Aggregator account:</p>
+      <p>We detected a security-related action on your Autopilot account:</p>
       <div class="warning">
         <p><strong>Action:</strong> ${action}</p>
         ${ipAddress ? `<p><strong>IP Address:</strong> ${ipAddress}</p>` : ""}
@@ -215,7 +223,9 @@ export function securityAlertTemplate(action: string, ipAddress?: string, userAg
         <li>Contact our support team</li>
       </ol>
       <div style="text-align: center;">
-        <a href="${env.BETTER_AUTH_URL}/dashboard" class="button">Review Account</a>
+        <a href="${
+          env.BETTER_AUTH_URL
+        }/dashboard" class="button">Review Account</a>
       </div>
     </div>
   `;

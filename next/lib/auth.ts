@@ -47,19 +47,19 @@ export const auth = betterAuth({
 
         switch (type) {
           case "sign-in":
-            subject = "🔐 Sign In to Game Aggregator";
+            subject = "🔐 Sign In to Autopilot";
             html = emailTemplates.signInOTP(otp, 5);
             break;
           case "email-verification":
-            subject = "✉️ Verify Your Email - Game Aggregator";
+            subject = "✉️ Verify Your Email - Autopilot";
             html = emailTemplates.emailVerification(otp, 5);
             break;
           case "forget-password":
-            subject = "🔑 Reset Your Password - Game Aggregator";
+            subject = "🔑 Reset Your Password - Autopilot";
             html = emailTemplates.passwordReset(otp, 5);
             break;
           default:
-            subject = "Verification Code - Game Aggregator";
+            subject = "Verification Code - Autopilot";
             html = emailTemplates.signInOTP(otp, 5);
         }
 

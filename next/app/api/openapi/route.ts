@@ -12,10 +12,9 @@ export async function GET() {
 
   const spec = await generator.generate(router, {
     info: {
-      title: "Algorand Game Aggregator API",
+      title: "AutoPilot API",
       version: "1.0.0",
-      description:
-        "API for Algorand Game Aggregator - handle game data aggregation, user management, and transaction processing",
+      description: "This is the OpenAPI specification for the AutoPilot API.",
     },
     servers: [
       {

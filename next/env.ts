@@ -17,7 +17,7 @@ export const env = createEnv({
     SMTP_USER: z.string().min(1),
     SMTP_PASSWORD: z.string().min(1),
     SMTP_FROM_EMAIL: z.string().email(),
-    SMTP_FROM_NAME: z.string().default("Game Aggregator"),
+    SMTP_FROM_NAME: z.string().default("Autopilot"),
   },
   client: {
     // NEXT_PUBLIC_ variables are exposed to the client
