@@ -337,3 +337,24 @@ All 30+ UI components are pre-installed and available:
 
 - Recharts 2.7.2
 - Shadcn/ui Chart components
+
+---
+
+## Not Yet Implemented (Gap List)
+
+- Automation agents: email, WhatsApp, billing/invoicing, CRM/lead updates, data-entry/sync, reporting (daily/weekly), learning/adaptation, policy/approval agent.
+- Connectors: Gmail/IMAP, WhatsApp webhook/API, CRM/Sheets/Tally integrations, calendar/payment hooks.
+- Data models: `agent_tasks`, `activity_log`, `settings/toggles`, `crm/leads`, `invoices`.
+- Autopilot controls: per-channel toggles (auto reply, auto invoice, auto follow-up, auto reporting), confidence thresholds, manual review paths.
+- Approval flow: approval queue, reviewer UI, policy rules, escalation paths.
+- Activity log: transparent timeline of actions, filters, audit metadata.
+- Reporting: daily/weekly summaries of tasks completed, pending work, leads, payments.
+- UI: agent panels, approval queue, activity log surfaces, toggles/settings pages.
+
+## Next Priorities (suggested)
+
+- Update `init.md` wording to keep it AI business-automation focused and ensure no game references (already removed).
+- Define schemas for agents, tasks, approvals, toggles, and logs; add Mongo collections.
+- Add RPC endpoints for agents and approvals; extend admin/user auth checks.
+- Add UI for toggles, approval queue, and activity log in dashboard/admin.
+- Plan connectors (Gmail/WhatsApp/Sheets/CRM) and webhook ingestion routes.
