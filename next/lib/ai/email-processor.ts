@@ -498,12 +498,13 @@ export async function approveDraftReply(
     return { success: false, error: "Task not found" };
   }
 
-  if (!task.draftReply) {
-    return { success: false, error: "No draft reply found" };
-  }
+  // Allow manual reply composition even if no AI draft exists
+  const replyBody = modifiedBody || task.draftReply?.body;
+  const replySubject = modifiedSubject || task.draftReply?.subject;
 
-  const replyBody = modifiedBody || task.draftReply.body;
-  const replySubject = modifiedSubject || task.draftReply.subject;
+  if (!replyBody) {
+    return { success: false, error: "Reply body is required" };
+  }
 
   // Reconstruct the email for reply
   const originalEmail: EmailMessage = {

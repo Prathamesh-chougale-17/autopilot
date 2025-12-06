@@ -46,22 +46,9 @@ export function ApprovalsPanel() {
         status: "needs_approval",
         limit: 50,
       });
-      return res.items.map((t) => {
-        // Handle extended task data from raw response
-        const raw = t as unknown as Record<string, unknown>;
-        return {
-          id: t.id,
-          agent: t.agent,
-          status: t.status,
-          input: t.input ?? {},
-          confidence: t.confidence,
-          suggestedAction: raw.suggestedAction as string | undefined,
-          classification: raw.classification as TaskItem["classification"],
-          draftReply: raw.draftReply as TaskItem["draftReply"],
-        };
-      });
+      return res.items as TaskItem[];
     },
-    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchInterval: 5000,
   });
 
   const approveMutation = useMutation({
@@ -94,16 +81,16 @@ export function ApprovalsPanel() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>Approvals</CardTitle>
+          <CardTitle>Pending Replies</CardTitle>
           {data && data.length > 0 && (
-            <Badge variant="destructive">{data.length} pending</Badge>
+            <Badge variant="destructive">{data.length} awaiting approval</Badge>
           )}
         </div>
       </CardHeader>
       <CardContent>
         {isPending && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Spinner className="h-4 w-4" /> Loading approvals...
+            <Spinner className="h-4 w-4" /> Loading pending replies...
           </div>
         )}
         {isError && (
@@ -119,73 +106,57 @@ export function ApprovalsPanel() {
           </Alert>
         )}
         {data && data.length === 0 && (
-          <p className="text-sm text-muted-foreground">No approvals pending.</p>
+          <p className="text-sm text-muted-foreground">No replies awaiting approval.</p>
         )}
-        <ScrollArea className="h-[400px]">
-          <div className="space-y-3 pr-4">
+        <ScrollArea className="h-[500px]">
+          <div className="space-y-4 pr-4">
             {data &&
               data.map((task) => (
-                <div key={task.id} className="rounded-md border p-4 space-y-3">
-                  {/* Header */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="capitalize">
-                        {task.agent}
-                      </Badge>
-                      {task.classification?.priority && (
-                        <Badge
-                          variant={
-                            task.classification.priority === "high"
-                              ? "destructive"
-                              : "outline"
-                          }
-                        >
-                          {task.classification.priority}
-                        </Badge>
-                      )}
-                      {task.classification?.sentiment && (
-                        <Badge
-                          variant={
-                            task.classification.sentiment === "positive"
-                              ? "default"
-                              : task.classification.sentiment === "negative"
-                              ? "destructive"
-                              : "outline"
-                          }
-                        >
-                          {task.classification.sentiment}
-                        </Badge>
-                      )}
-                    </div>
-                    {task.confidence !== undefined && (
-                      <span className="text-xs text-muted-foreground">
-                        {(task.confidence * 100).toFixed(0)}% confidence
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Email Info (for email agent) */}
-                  {task.agent === "email" && task.input && (
-                    <div className="space-y-2 bg-muted/50 rounded-md p-3">
-                      <div className="text-sm">
-                        <span className="font-medium">From:</span>{" "}
-                        <span className="text-muted-foreground">
-                          {String(task.input.from || "Unknown")}
-                        </span>
+                <div key={task.id} className="rounded-lg border p-4 space-y-4">
+                  {/* Original Email Section */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">📧 Incoming Email</h3>
+                      <div className="flex items-center gap-2">
+                        {task.classification?.priority && (
+                          <Badge
+                            variant={
+                              task.classification.priority === "high"
+                                ? "destructive"
+                                : "outline"
+                            }
+                          >
+                            {task.classification.priority}
+                          </Badge>
+                        )}
+                        {task.classification?.category && (
+                          <Badge variant="secondary">{task.classification.category}</Badge>
+                        )}
                       </div>
-                      <div className="text-sm">
-                        <span className="font-medium">Subject:</span>{" "}
-                        <span className="text-muted-foreground">
+                    </div>
+
+                    <div className="bg-muted/30 rounded-lg p-4 space-y-2">
+                      <div>
+                        <span className="text-xs font-medium text-muted-foreground">FROM:</span>
+                        <div className="font-medium text-sm mt-1">
+                          {String(task.input.from || "Unknown")}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium text-muted-foreground">SUBJECT:</span>
+                        <div className="font-medium text-sm mt-1">
                           {String(task.input.subject || "(No subject)")}
-                        </span>
+                        </div>
                       </div>
                       {task.classification?.keyPoints &&
                         task.classification.keyPoints.length > 0 && (
-                          <div className="text-sm">
-                            <span className="font-medium">Key Points:</span>
-                            <ul className="list-disc list-inside text-muted-foreground mt-1">
+                          <div className="pt-2 border-t">
+                            <span className="text-xs font-medium text-muted-foreground">
+                              KEY POINTS:
+                            </span>
+                            <ul className="list-disc list-inside space-y-1 mt-1">
                               {task.classification.keyPoints.map((point, i) => (
-                                <li key={i} className="text-xs">
+                                <li key={i} className="text-sm text-muted-foreground">
                                   {point}
                                 </li>
                               ))}
@@ -193,131 +164,142 @@ export function ApprovalsPanel() {
                           </div>
                         )}
                     </div>
-                  )}
+                  </div>
 
-                  {/* Suggested Action */}
-                  {task.suggestedAction && (
-                    <div className="text-sm">
-                      <span className="font-medium">Suggested:</span>{" "}
-                      <span className="text-muted-foreground">
-                        {task.suggestedAction}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Draft Reply (if available) */}
-                  {task.draftReply?.body && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">
-                          AI Draft Reply:
-                        </span>
-                        {task.draftReply.tone && (
-                          <Badge variant="outline" className="text-xs">
-                            {task.draftReply.tone}
-                          </Badge>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            if (editingTaskId === task.id) {
-                              setEditingTaskId(null);
-                            } else {
-                              setEditingTaskId(task.id);
-                              setEditedSubject(task.draftReply?.subject || "");
-                              setEditedBody(task.draftReply?.body || "");
-                            }
-                          }}
-                        >
-                          {editingTaskId === task.id ? "Cancel Edit" : "Edit"}
-                        </Button>
-                      </div>
-                      {editingTaskId === task.id ? (
-                        <div className="space-y-2">
-                          <div>
-                            <label className="text-xs font-medium text-muted-foreground">
-                              Subject:
-                            </label>
-                            <Input
-                              value={editedSubject}
-                              onChange={(e) => setEditedSubject(e.target.value)}
-                              className="mt-1"
-                              placeholder="Reply subject"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-muted-foreground">
-                              Message:
-                            </label>
-                            <Textarea
-                              value={editedBody}
-                              onChange={(e) => setEditedBody(e.target.value)}
-                              rows={8}
-                              className="mt-1 font-mono text-sm"
-                              placeholder="Reply body"
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          {task.draftReply.subject && (
-                            <div className="text-sm">
-                              <span className="font-medium">Subject:</span>{" "}
-                              <span className="text-muted-foreground">
-                                {task.draftReply.subject}
-                              </span>
-                            </div>
-                          )}
-                          <div className="bg-muted rounded-md p-3 text-sm text-muted-foreground whitespace-pre-wrap">
-                            {task.draftReply.body}
-                          </div>
-                        </>
+                  {/* Draft Reply Section */}
+                  <div className="space-y-3 border-t pt-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">
+                        ✉️ {task.draftReply?.body ? "AI Draft Reply" : "Compose Reply"}
+                      </h3>
+                      {task.draftReply?.tone && (
+                        <Badge variant="outline" className="text-xs">
+                          {task.draftReply.tone} tone
+                        </Badge>
                       )}
                     </div>
-                  )}
 
-                  {/* Non-email task input */}
-                  {task.agent !== "email" && (
-                    <pre className="whitespace-pre-wrap break-all text-xs text-muted-foreground bg-muted/50 rounded-md p-2">
-                      {JSON.stringify(task.input, null, 2)}
-                    </pre>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      size="sm"
-                      variant="default"
-                      disabled={approveMutation.isPending}
-                      onClick={() => {
-                        if (editingTaskId === task.id) {
-                          approveMutation.mutate({
-                            taskId: task.id,
-                            modifiedSubject:
-                              editedSubject !== (task.draftReply?.subject || "")
-                                ? editedSubject
-                                : undefined,
-                            modifiedBody:
-                              editedBody !== (task.draftReply?.body || "")
-                                ? editedBody
-                                : undefined,
-                          });
-                        } else {
-                          approveMutation.mutate({ taskId: task.id });
-                        }
-                      }}
-                    >
-                      {editingTaskId === task.id ? "Save & Send" : "Approve"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={rejectMutation.isPending}
-                      onClick={() => rejectMutation.mutate({ taskId: task.id })}
-                    >
-                      Reject
-                    </Button>
+                    {editingTaskId === task.id ? (
+                      <div className="space-y-3 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg p-4">
+                        <div>
+                          <label className="text-xs font-semibold text-muted-foreground">
+                            SUBJECT:
+                          </label>
+                          <Input
+                            value={editedSubject}
+                            onChange={(e) => setEditedSubject(e.target.value)}
+                            className="mt-1.5"
+                            placeholder="Reply subject"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-muted-foreground">
+                            MESSAGE:
+                          </label>
+                          <Textarea
+                            value={editedBody}
+                            onChange={(e) => setEditedBody(e.target.value)}
+                            rows={12}
+                            className="mt-1.5 text-sm font-normal"
+                            placeholder="Type your reply..."
+                          />
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            size="sm"
+                            disabled={approveMutation.isPending || !editedBody.trim()}
+                            onClick={() => {
+                              approveMutation.mutate({
+                                taskId: task.id,
+                                modifiedSubject: editedSubject || undefined,
+                                modifiedBody: editedBody || undefined,
+                              });
+                            }}
+                          >
+                            {approveMutation.isPending ? "Sending..." : "✓ Send Reply"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditingTaskId(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : task.draftReply?.body ? (
+                      <div className="space-y-3">
+                        <div className="bg-green-50/50 dark:bg-green-950/20 rounded-lg p-4 space-y-3">
+                          {task.draftReply.subject && (
+                            <div>
+                              <span className="text-xs font-semibold text-muted-foreground">
+                                SUBJECT:
+                              </span>
+                              <div className="font-medium text-sm mt-1">
+                                {task.draftReply.subject}
+                              </div>
+                            </div>
+                          )}
+                          <div className="border-t pt-3">
+                            <span className="text-xs font-semibold text-muted-foreground">
+                              MESSAGE:
+                            </span>
+                            <div className="text-sm whitespace-pre-wrap mt-2">
+                              {task.draftReply.body}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            disabled={approveMutation.isPending}
+                            onClick={() => {
+                              approveMutation.mutate({ taskId: task.id });
+                            }}
+                          >
+                            {approveMutation.isPending ? "Sending..." : "✓ Send as Draft"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingTaskId(task.id);
+                              setEditedSubject(
+                                task.draftReply?.subject ||
+                                  `Re: ${task.input.subject || ""}`
+                              );
+                              setEditedBody(task.draftReply?.body || "");
+                            }}
+                          >
+                            ✏️ Edit & Customize
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={rejectMutation.isPending}
+                            onClick={() => rejectMutation.mutate({ taskId: task.id })}
+                          >
+                            {rejectMutation.isPending ? "..." : "✕ Discard"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="bg-muted/30 rounded-lg p-4 text-sm text-muted-foreground text-center italic">
+                          No AI draft generated. Click below to compose a reply manually.
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setEditingTaskId(task.id);
+                            setEditedSubject(`Re: ${task.input.subject || ""}`);
+                            setEditedBody("");
+                          }}
+                        >
+                          ✏️ Compose Reply
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

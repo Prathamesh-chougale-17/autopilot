@@ -70,6 +70,25 @@ export const agentTaskSchema = z.object({
   approvalNote: z.string().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
+  // Extended fields for AI processing
+  classification: z
+    .object({
+      category: z.string().optional(),
+      priority: z.string().optional(),
+      sentiment: z.string().optional(),
+      keyPoints: z.array(z.string()).optional(),
+      confidence: z.number().optional(),
+    })
+    .optional(),
+  draftReply: z
+    .object({
+      subject: z.string().optional(),
+      body: z.string().optional(),
+      tone: z.string().optional(),
+      reason: z.string().optional(),
+    })
+    .optional(),
+  suggestedAction: z.string().optional(),
 });
 export type AgentTask = z.infer<typeof agentTaskSchema>;
 

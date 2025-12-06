@@ -198,7 +198,7 @@ export const listTasks = os
 
     return {
       items: items.map((item) => {
-        const parsed = agentTaskSchema.parse({
+        return agentTaskSchema.parse({
           id: item.id ?? item._id?.toString(),
           userId: item.userId?.toString() ?? String(session.user.id),
           agent: item.agent,
@@ -210,15 +210,11 @@ export const listTasks = os
           approvalNote: item.approvalNote,
           createdAt: item.createdAt ?? new Date(),
           updatedAt: item.updatedAt ?? new Date(),
-        });
-
-        // Attach additional DB fields (like draftReply / classification / suggestedAction)
-        return {
-          ...parsed,
-          draftReply: item.draftReply,
+          // Include extended fields
           classification: item.classification,
+          draftReply: item.draftReply,
           suggestedAction: item.suggestedAction,
-        } as unknown as typeof parsed;
+        });
       }),
     };
   });
