@@ -18,6 +18,11 @@ export const env = createEnv({
     SMTP_PASSWORD: z.string().min(1),
     SMTP_FROM_EMAIL: z.string().email(),
     SMTP_FROM_NAME: z.string().default("Autopilot"),
+    // Connector Webhooks
+    GMAIL_WEBHOOK_SECRET: z.string().min(16).optional(),
+    WHATSAPP_VERIFY_TOKEN: z.string().min(8).optional(),
+    WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+    WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   },
   client: {
     // NEXT_PUBLIC_ variables are exposed to the client
@@ -38,6 +43,10 @@ export const env = createEnv({
     SMTP_PASSWORD: process.env.SMTP_PASSWORD,
     SMTP_FROM_EMAIL: process.env.SMTP_FROM_EMAIL,
     SMTP_FROM_NAME: process.env.SMTP_FROM_NAME,
+    GMAIL_WEBHOOK_SECRET: process.env.GMAIL_WEBHOOK_SECRET,
+    WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN,
+    WHATSAPP_ACCESS_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN,
+    WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID,
   },
   // For Next.js >= 13.4.4, you only need to destructure client variables:
   // experimental__runtimeEnv: {

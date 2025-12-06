@@ -3,16 +3,10 @@ import { getSessionCookie } from "better-auth/cookies";
 
 export async function proxy(request: NextRequest) {
   const sessionCookie = getSessionCookie(request);
-
-  // Protect admin routes
-  if (request.nextUrl.pathname.startsWith("/admin")) {
-    if (!sessionCookie) {
-      return NextResponse.redirect(new URL("/sign-in", request.url));
-    }
-  }
+  const PUBLIC_ROUTES = ["/", "/sign-in", "/sign-up"];
 
   // Protect dashboard routes
-  if (request.nextUrl.pathname.startsWith("/")) {
+  if (!PUBLIC_ROUTES.includes(request.nextUrl.pathname)) {
     if (!sessionCookie) {
       return NextResponse.redirect(new URL("/sign-in", request.url));
     }
@@ -29,7 +23,6 @@ export async function proxy(request: NextRequest) {
 
   return NextResponse.next();
 }
-
 export const config = {
-  matcher: ["/admin/:path*", "/dashboard/:path*", "/sign-in", "/sign-up"],
+  matcher: ["/dashboard", "/admin/:path*", "/sign-in", "/sign-up"], // Apply middleware to specific routes
 };
