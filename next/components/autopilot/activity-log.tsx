@@ -41,6 +41,88 @@ function formatAction(action: string): string {
   return action.replace(/[_:]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Generate friendly title based on action and context
+function generateActivityTitle(
+  action: string,
+  context?: Record<string, unknown>
+): string {
+  // Email-related actions
+  if (action.includes("email:auto_replied") && context?.subject) {
+    return `Auto-replied: ${context.subject}`;
+  }
+  if (action.includes("email:draft_created") && context?.subject) {
+    return `Draft created: ${context.subject}`;
+  }
+  if (action.includes("email:reply_approved")) {
+    return context?.subject
+      ? `Reply approved: ${context.subject}`
+      : "Reply approved and sent";
+  }
+  if (action.includes("email:reply_rejected")) {
+    return context?.subject
+      ? `Draft rejected: ${context.subject}`
+      : "Draft reply rejected";
+  }
+  if (action.includes("email:skipped") && context?.reason === "spam") {
+    return context?.subject
+      ? `Spam filtered: ${context.subject}`
+      : "Spam email filtered";
+  }
+  if (action.includes("email:skipped") && context?.reason === "newsletter") {
+    return context?.subject
+      ? `Newsletter filtered: ${context.subject}`
+      : "Newsletter email filtered";
+  }
+  if (action.includes("email:skipped_already_processed")) {
+    return context?.subject
+      ? `Already processed: ${context.subject}`
+      : "Skipped: Already processed";
+  }
+  if (action.includes("email:skipped") && context?.reason === "existing_task") {
+    return context?.subject
+      ? `Already has task: ${context.subject}`
+      : "Skipped: Already has task";
+  }
+  if (action.includes("email:skipped")) {
+    return context?.subject
+      ? `Skipped: ${context.subject}`
+      : `Email skipped: ${context?.reason || "unknown"}`;
+  }
+  if (action.includes("email:process_failed")) {
+    return context?.subject
+      ? `Failed to process: ${context.subject}`
+      : "Failed to process email";
+  }
+
+  // Gmail actions
+  if (action.includes("gmail_send") && context?.to) {
+    const subject = context?.subject ? `: ${context.subject}` : "";
+    return `Sent to ${context.to}${subject}`;
+  }
+  if (action.includes("gmail_reply") && context?.subject) {
+    return `Replied: ${context.subject}`;
+  }
+
+  // Task actions
+  if (action.includes("task_created") && context?.taskId) {
+    return `New task created`;
+  }
+  if (action.includes("task_approved")) {
+    return "Task approved";
+  }
+  if (action.includes("task_rejected")) {
+    return "Task rejected";
+  }
+
+  // AI processing
+  if (action.includes("ai:process_emails")) {
+    return "AI processed emails";
+  }
+
+  // Fallback to formatted action
+  return formatAction(action);
+}
+
 // Format context value for display - show subject for emails, truncate long text
 function formatContextValue(key: string, value: unknown): string {
   const strValue = typeof value === "string" ? value : JSON.stringify(value);
@@ -61,17 +143,11 @@ function formatContextValue(key: string, value: unknown): string {
 
 // Get display-friendly context entries, prioritizing meaningful data
 function getDisplayContext(
+  action: string,
   context: Record<string, unknown>
 ): [string, unknown][] {
-  const priorityKeys = [
-    "subject",
-    "to",
-    "from",
-    "reason",
-    "category",
-    "action",
-  ];
-  const skipKeys = ["emailId", "messageId", "threadId"];
+  const priorityKeys = ["subject", "to", "from", "category", "action"];
+  const skipKeys = ["emailId", "messageId", "threadId", "reason"]; // Skip reason since it's in title
 
   const entries = Object.entries(context);
 
@@ -86,7 +162,16 @@ function getDisplayContext(
   });
 
   // Filter and limit
-  return entries.filter(([key]) => !skipKeys.includes(key)).slice(0, 3);
+  const filtered = entries
+    .filter(([key]) => !skipKeys.includes(key))
+    .slice(0, 3);
+
+  // If we filtered everything out for skip actions, return empty
+  if (filtered.length === 0 && action.includes("skipped")) {
+    return [];
+  }
+
+  return filtered;
 }
 
 export function ActivityLogPanel() {
@@ -147,18 +232,20 @@ export function ActivityLogPanel() {
                   <div className="mt-0.5">{getActionIcon(item.action)}</div>
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="font-medium text-foreground">
-                      {formatAction(item.action)}
+                      {generateActivityTitle(item.action, item.context)}
                     </div>
                     {item.context && Object.keys(item.context).length > 0 && (
                       <div className="text-xs text-muted-foreground space-y-0.5">
-                        {getDisplayContext(item.context).map(([key, value]) => (
-                          <div key={key} className="truncate">
-                            <span className="font-medium capitalize">
-                              {key}:
-                            </span>{" "}
-                            {formatContextValue(key, value)}
-                          </div>
-                        ))}
+                        {getDisplayContext(item.action, item.context).map(
+                          ([key, value]) => (
+                            <div key={key} className="truncate">
+                              <span className="font-medium capitalize">
+                                {key}:
+                              </span>{" "}
+                              {formatContextValue(key, value)}
+                            </div>
+                          )
+                        )}
                       </div>
                     )}
                   </div>

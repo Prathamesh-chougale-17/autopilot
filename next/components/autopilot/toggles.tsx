@@ -7,9 +7,21 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const toggleFields: {
-  key: "autoReply" | "autoInvoice" | "autoFollowUp" | "autoReporting";
+  key:
+    | "autoReply"
+    | "autoInvoice"
+    | "autoFollowUp"
+    | "autoReporting"
+    | "autoProcess";
   label: string;
   description: string;
 }[] = [
@@ -35,6 +47,11 @@ const toggleFields: {
     label: "Auto reporting",
     description: "Send daily/weekly summaries of tasks, leads, and payments.",
   },
+  {
+    key: "autoProcess",
+    label: "Auto process emails",
+    description: "Automatically process incoming emails when fetched.",
+  },
 ];
 
 type ToggleState = {
@@ -42,6 +59,8 @@ type ToggleState = {
   autoInvoice: boolean;
   autoFollowUp: boolean;
   autoReporting: boolean;
+  autoProcess: boolean;
+  gmailCategory: "all" | "primary" | "updates";
 };
 
 export function AutopilotToggles() {
@@ -78,6 +97,11 @@ export function AutopilotToggles() {
     mutation.mutate({ ...data, [key]: value });
   };
 
+  const updateCategory = (value: "all" | "primary" | "updates") => {
+    if (!data) return;
+    mutation.mutate({ ...data, gmailCategory: value });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -101,6 +125,32 @@ export function AutopilotToggles() {
             <AlertDescription>Failed to update toggles</AlertDescription>
           </Alert>
         )}
+
+        {/* Gmail Category Filter */}
+        {data && (
+          <div className="rounded-md border p-3">
+            <Label className="text-base font-medium">Gmail Category</Label>
+            <p className="text-sm text-muted-foreground mb-2">
+              Filter emails by Gmail category (Primary: client emails, Updates:
+              notifications, All: everything)
+            </p>
+            <Select
+              value={data.gmailCategory}
+              onValueChange={updateCategory}
+              disabled={mutation.isPending}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="primary">Primary (Client Emails)</SelectItem>
+                <SelectItem value="updates">Updates (Notifications)</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {data &&
           toggleFields.map((item) => (
             <div

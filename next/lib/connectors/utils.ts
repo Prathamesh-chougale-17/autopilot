@@ -22,7 +22,7 @@ export async function logConnectorActivity(
   const activityLog = db.collection("activity_log");
 
   await activityLog.insertOne({
-    userId: new ObjectId(userId),
+    userId: String(userId),
     action: `connector:${source}:${action}`,
     details,
     metadata: {
@@ -45,7 +45,7 @@ export async function createTaskFromConnector(
   const activityLog = db.collection("activity_log");
 
   const task = {
-    userId: new ObjectId(userId),
+    userId: String(userId),
     source: event.source,
     externalId: event.externalId,
     taskType: classification.taskType,
@@ -65,7 +65,7 @@ export async function createTaskFromConnector(
 
   // Log activity
   await activityLog.insertOne({
-    userId: new ObjectId(userId),
+    userId: String(userId),
     action: "task_created",
     taskId: result.insertedId,
     details: `Task created from ${event.source}: ${classification.suggestedAction}`,
@@ -94,7 +94,9 @@ export async function findUserByEmail(email: string) {
  */
 export async function getUserToggles(userId: string) {
   const settings = db.collection("settings");
-  const doc = await settings.findOne({ userId: new ObjectId(userId) });
+  const doc = await settings.findOne({
+    $or: [{ userId: userId }, { userId: new ObjectId(userId) }],
+  });
 
   return {
     autoReply: doc?.autoReply ?? false,

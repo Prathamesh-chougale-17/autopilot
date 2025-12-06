@@ -31,8 +31,13 @@ export const getToggles = os
         autoInvoice: false,
         autoFollowUp: false,
         autoReporting: false,
+        gmailCategory: "primary",
+        autoProcess: true,
       };
-      await settings.insertOne({ userId: session.user.id, ...defaults });
+      await settings.insertOne({
+        userId: String(session.user.id),
+        ...defaults,
+      });
       return defaults;
     }
 
@@ -41,6 +46,8 @@ export const getToggles = os
       autoInvoice: Boolean(record.autoInvoice),
       autoFollowUp: Boolean(record.autoFollowUp),
       autoReporting: Boolean(record.autoReporting),
+      gmailCategory: record.gmailCategory || "primary",
+      autoProcess: record.autoProcess ?? true,
     });
   });
 
@@ -57,8 +64,13 @@ export const setToggles = os
     const settings = db.collection("settings");
 
     await settings.updateOne(
-      { userId: session.user.id },
-      { $set: { ...input } },
+      {
+        $or: [
+          { userId: session.user.id },
+          { userId: new ObjectId(session.user.id) },
+        ],
+      },
+      { $set: { ...input, userId: String(session.user.id) } },
       { upsert: true }
     );
 
@@ -84,7 +96,7 @@ export const createTask = os
     const task: AgentTask = {
       ...input,
       id: new ObjectId().toHexString(),
-      userId: session.user.id,
+      userId: String(session.user.id),
       createdAt: now,
       updatedAt: now,
     };
@@ -97,7 +109,7 @@ export const createTask = os
     const logs = db.collection("activity_log");
     const log: ActivityLog = {
       id: new ObjectId().toHexString(),
-      userId: session.user.id,
+      userId: String(session.user.id),
       action: `task_created:${task.agent}`,
       context: { taskId: task.id },
       createdAt: now,
@@ -134,7 +146,7 @@ export const listActivity = os
       items: items.map((item) =>
         activityLogSchema.parse({
           id: item.id ?? item._id?.toString(),
-          userId: item.userId?.toString() ?? session.user.id,
+          userId: item.userId?.toString() ?? String(session.user.id),
           action: item.action ?? item.details ?? "unknown",
           context: item.context ?? item.metadata ?? {},
           createdAt: item.createdAt ?? item.timestamp ?? new Date(),
@@ -185,10 +197,10 @@ export const listTasks = os
       .toArray();
 
     return {
-      items: items.map((item) =>
-        agentTaskSchema.parse({
+      items: items.map((item) => {
+        const parsed = agentTaskSchema.parse({
           id: item.id ?? item._id?.toString(),
-          userId: item.userId,
+          userId: item.userId?.toString() ?? String(session.user.id),
           agent: item.agent,
           input: item.input,
           output: item.output,
@@ -198,8 +210,16 @@ export const listTasks = os
           approvalNote: item.approvalNote,
           createdAt: item.createdAt ?? new Date(),
           updatedAt: item.updatedAt ?? new Date(),
-        })
-      ),
+        });
+
+        // Attach additional DB fields (like draftReply / classification / suggestedAction)
+        return {
+          ...parsed,
+          draftReply: item.draftReply,
+          classification: item.classification,
+          suggestedAction: item.suggestedAction,
+        } as unknown as typeof parsed;
+      }),
     };
   });
 
@@ -257,7 +277,7 @@ export const setTaskStatus = os
     const logs = db.collection("activity_log");
     const log: ActivityLog = {
       id: new ObjectId().toHexString(),
-      userId: session.user.id,
+      userId: String(session.user.id),
       action: `task_${input.status}:${input.taskId}`,
       context: { taskId: input.taskId, note: input.approvalNote },
       createdAt: now,
@@ -266,7 +286,7 @@ export const setTaskStatus = os
 
     return agentTaskSchema.parse({
       id: updated.id ?? updated._id?.toString(),
-      userId: updated.userId,
+      userId: updated.userId?.toString() ?? String(session.user.id),
       agent: updated.agent,
       input: updated.input,
       output: updated.output,
@@ -304,29 +324,36 @@ export const getSummary = os
 
     const dateFilter = { $gte: startDate, $lte: now };
 
+    const userFilter = {
+      $or: [
+        { userId: session.user.id },
+        { userId: new ObjectId(session.user.id) },
+      ],
+    };
+
     const tasksCompleted = await tasks.countDocuments({
-      userId: session.user.id,
+      ...userFilter,
       status: "completed",
       updatedAt: dateFilter,
     });
     const tasksPending = await tasks.countDocuments({
-      userId: session.user.id,
+      ...userFilter,
       status: { $in: ["pending", "processing", "needs_approval"] },
     });
     const leads = await contacts.countDocuments({
-      userId: session.user.id,
+      ...userFilter,
       createdAt: dateFilter,
     });
     const invoicesSent = await invoices.countDocuments({
-      userId: session.user.id,
+      ...userFilter,
       createdAt: dateFilter,
     });
     const invoicesOverdue = await invoices.countDocuments({
-      userId: session.user.id,
+      ...userFilter,
       status: "overdue",
     });
     const paymentsReceived = await invoices.countDocuments({
-      userId: session.user.id,
+      ...userFilter,
       status: "paid",
       updatedAt: dateFilter,
     });
@@ -398,7 +425,12 @@ export const getReport = os
     }
 
     const dateFilter = { $gte: startDate, $lte: endDate };
-    const userFilter = { userId: session.user.id };
+    const userFilter = {
+      $or: [
+        { userId: session.user.id },
+        { userId: new ObjectId(session.user.id) },
+      ],
+    };
 
     // Summary counts
     const tasksCompleted = await tasks.countDocuments({
@@ -488,7 +520,7 @@ export const getReport = os
     const recentActivity = recentActivityRaw.map((item) =>
       activityLogSchema.parse({
         id: item.id ?? item._id?.toString(),
-        userId: item.userId,
+        userId: item.userId?.toString() ?? String(session.user.id),
         action: item.action,
         context: item.context,
         createdAt: item.createdAt ?? new Date(),

@@ -81,21 +81,94 @@ export interface EmailMessage {
 }
 
 /**
+ * Mark an email as processed by applying a custom label
+ */
+export async function markEmailAsProcessed(
+  userId: string,
+  messageId: string
+): Promise<{ success: boolean }> {
+  const gmail = await getGmailClient(userId);
+  if (!gmail) return { success: false };
+
+  try {
+    // Apply "AUTOPILOT_PROCESSED" label (or create if doesn't exist)
+    // First check if label exists
+    const labelsResponse = await gmail.users.labels.list({ userId: "me" });
+    const labels = labelsResponse.data.labels || [];
+    let labelId = labels.find((l) => l.name === "AUTOPILOT_PROCESSED")?.id;
+
+    if (!labelId) {
+      // Create the label
+      const createResponse = await gmail.users.labels.create({
+        userId: "me",
+        requestBody: {
+          name: "AUTOPILOT_PROCESSED",
+          labelListVisibility: "labelShow",
+          messageListVisibility: "show",
+        },
+      });
+      labelId = createResponse.data.id!;
+    }
+
+    // Apply the label to the message
+    await gmail.users.messages.modify({
+      userId: "me",
+      id: messageId,
+      requestBody: {
+        addLabelIds: [labelId],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error(`Error marking email ${messageId} as processed:`, error);
+    return { success: false };
+  }
+}
+
+/**
  * Get recent emails from user's inbox
  */
 export async function getRecentEmails(
   userId: string,
   maxResults: number = 10,
-  query?: string
+  query?: string,
+  category: "all" | "primary" | "updates" = "primary",
+  includeProcessed: boolean = false
 ): Promise<EmailMessage[]> {
   const gmail = await getGmailClient(userId);
   if (!gmail) return [];
 
   try {
+    // Build query with category filter
+    let baseQuery = query || "in:inbox";
+
+    // Add category filter
+    if (category === "primary") {
+      baseQuery += " category:primary";
+    } else if (category === "updates") {
+      baseQuery += " category:updates";
+    }
+    // 'all' doesn't add any category filter
+
+    // Add today's date filter by default if no custom query
+    if (!query) {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      // Gmail accepts epoch seconds for after: filter which is reliable
+      const afterSeconds = Math.floor(todayStart.getTime() / 1000);
+      baseQuery += ` after:${afterSeconds}`;
+    }
+
+    // Exclude already processed emails by label unless caller requested otherwise
+    const finalQuery = includeProcessed
+      ? baseQuery
+      : `${baseQuery} -label:AUTOPILOT_PROCESSED`;
+
     const response = await gmail.users.messages.list({
       userId: "me",
       maxResults,
-      q: query || "in:inbox",
+      q: finalQuery,
     });
 
     const messages = response.data.messages || [];

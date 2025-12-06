@@ -7,8 +7,11 @@ import { env } from "@/env";
 import {
   getRecentEmails,
   replyToEmail,
+  sendGmailEmail,
+  markEmailAsProcessed,
   type EmailMessage,
 } from "@/lib/connectors/gmail";
+import { getUserContext } from "@/lib/ai/reply-learning";
 
 // ============================================
 // AI Email Processor
@@ -85,10 +88,68 @@ Provide:
  * Generate an auto-reply for an email
  */
 export async function generateAutoReply(
+  userId: string,
   email: EmailMessage,
   classification: EmailClassification,
-  businessContext?: string
+  businessContext?: {
+    businessName?: string;
+    industry?: string;
+    description?: string;
+    tone?: string;
+    signatureTemplate?: string;
+    commonResponses?: Array<{ label: string; template: string }>;
+    keywords?: string[];
+    additionalContext?: string;
+  }
 ): Promise<AutoReply> {
+  // Get learned user context (writing style from approved replies)
+  const userContextText = await getUserContext(userId);
+
+  // Build business context prompt section
+  let contextSection = "";
+  if (businessContext) {
+    contextSection = `
+Business Context:
+${
+  businessContext.businessName
+    ? `- Company: ${businessContext.businessName}`
+    : ""
+}
+${businessContext.industry ? `- Industry: ${businessContext.industry}` : ""}
+${
+  businessContext.description
+    ? `- Description: ${businessContext.description}`
+    : ""
+}
+${businessContext.tone ? `- Preferred Tone: ${businessContext.tone}` : ""}
+${
+  businessContext.keywords?.length
+    ? `- Key Topics/Products: ${businessContext.keywords.join(", ")}`
+    : ""
+}
+${
+  businessContext.additionalContext
+    ? `- Additional Context: ${businessContext.additionalContext}`
+    : ""
+}
+
+${
+  businessContext.commonResponses?.length
+    ? `Common Response Templates (use as inspiration if relevant):
+${businessContext.commonResponses
+  .map((r) => `- ${r.label}: ${r.template}`)
+  .join("\n")}`
+    : ""
+}
+
+${
+  businessContext.signatureTemplate
+    ? `Email Signature to use:\n${businessContext.signatureTemplate}`
+    : ""
+}
+`;
+  }
+
   const { object } = await generateObject({
     model: aiModel,
     schema: autoReplySchema,
@@ -105,21 +166,33 @@ Classification:
 - Priority: ${classification.priority}
 - Sentiment: ${classification.sentiment}
 - Key Points: ${classification.keyPoints.join(", ")}
-
-${businessContext ? `Business Context: ${businessContext}` : ""}
-
+${contextSection}
+${userContextText ? `\n${userContextText}\n` : ""}
 Guidelines:
 - Be professional and helpful
 - Address the key points from the email
 - If the email is spam or newsletter, set shouldReply to false
 - If the matter is complex or sensitive, set requiresHumanReview to true
 - Keep the reply concise but complete
-- Match the appropriate tone based on the email context
+- Match the tone specified in business context (if provided), otherwise use professional tone
+- Include the signature template if provided
+- Reference relevant keywords/products from business context when appropriate
+${
+  userContextText
+    ? "- IMPORTANT: Follow the user writing style context above to match their established communication patterns and tone"
+    : ""
+}
 
 Generate a reply that:
 1. Acknowledges receipt (if appropriate)
 2. Addresses the main concern or question
-3. Provides helpful next steps if applicable`,
+3. Provides helpful next steps if applicable
+4. Uses the business context to make the reply relevant and personalized
+${
+  userContextText
+    ? "5. Matches the learned writing style from previous approved replies"
+    : ""
+}`,
   });
 
   return object;
@@ -130,27 +203,79 @@ Generate a reply that:
  */
 export async function processIncomingEmails(
   userId: string,
-  options?: { maxEmails?: number; autoProcess?: boolean }
+  options?: {
+    maxEmails?: number;
+    autoProcess?: boolean;
+    category?: "all" | "primary" | "updates";
+    includeProcessed?: boolean;
+  }
 ): Promise<{
   processed: number;
   tasks: string[];
   autoReplied: number;
 }> {
-  const { maxEmails = 10, autoProcess = false } = options || {};
+  const {
+    maxEmails = 10,
+    autoProcess = false,
+    category = "primary",
+    includeProcessed = false,
+  } = options || {};
 
-  // Get unread emails
-  const emails = await getRecentEmails(userId, maxEmails, "is:unread");
+  // Ensure unique index on agent_tasks to prevent duplicates
+  const agentTasks = db.collection("agent_tasks");
+  try {
+    await agentTasks.createIndex(
+      { userId: 1, externalId: 1 },
+      { unique: true, background: true }
+    );
+  } catch {
+    // Index may already exist, ignore error
+  }
+
+  // Get user's toggle settings for category preference
+  const settings = db.collection("settings");
+  const userSettings = await settings.findOne({
+    $or: [{ userId: userId }, { userId: new ObjectId(userId) }],
+  });
+  const autoReplyEnabled = userSettings?.autoReply ?? false;
+  const gmailCategory = userSettings?.gmailCategory ?? category;
+  const shouldAutoProcess = autoProcess ?? userSettings?.autoProcess ?? true;
+
+  // Get emails from specified category (default: today's primary emails)
+  const emails = await getRecentEmails(
+    userId,
+    maxEmails,
+    undefined,
+    gmailCategory,
+    includeProcessed
+  );
 
   const tasks: string[] = [];
   let autoReplied = 0;
 
-  // Get user's toggle settings
-  const settings = db.collection("settings");
-  const userSettings = await settings.findOne({ userId: new ObjectId(userId) });
-  const autoReplyEnabled = userSettings?.autoReply ?? false;
+  // Fetch business context for AI
+  const contextColl = db.collection("business_context");
+  const businessContext = await contextColl.findOne({
+    $or: [{ userId }, { userId: new ObjectId(userId) }],
+  });
 
   for (const email of emails) {
     try {
+      // Skip emails that already have an agent task created (avoid re-processing)
+      const agentTasksColl = db.collection("agent_tasks");
+      const already = await agentTasksColl.findOne({
+        externalId: email.id,
+        $or: [{ userId }, { userId: new ObjectId(userId) }],
+      });
+      if (already) {
+        await logActivity(userId, "email:skipped_already_processed", {
+          emailId: email.id,
+          subject: email.subject,
+          reason: "existing_task",
+        });
+        continue;
+      }
+
       // Classify the email
       const classification = await classifyEmail(email);
 
@@ -161,6 +286,7 @@ export async function processIncomingEmails(
       ) {
         await logActivity(userId, "email:skipped", {
           emailId: email.id,
+          subject: email.subject,
           reason: classification.category,
         });
         continue;
@@ -170,16 +296,41 @@ export async function processIncomingEmails(
       const taskId = await createEmailTask(userId, email, classification);
       tasks.push(taskId);
 
-      // Generate auto-reply if enabled
-      if (autoReplyEnabled && classification.requiresResponse && autoProcess) {
-        const autoReply = await generateAutoReply(email, classification);
+      // Mark email as processed to avoid re-fetching
+      await markEmailAsProcessed(userId, email.id);
 
-        if (autoReply.shouldReply && !autoReply.requiresHumanReview) {
-          // Send auto-reply
+      // If this email requires a response, always generate an AI draft reply
+      // so that approvals have a ready subject + message related to the query.
+      if (classification.requiresResponse) {
+        const autoReply = await generateAutoReply(
+          userId,
+          email,
+          classification,
+          businessContext
+            ? {
+                businessName: businessContext.businessName,
+                industry: businessContext.industry,
+                description: businessContext.description,
+                tone: businessContext.tone,
+                signatureTemplate: businessContext.signatureTemplate,
+                commonResponses: businessContext.commonResponses,
+                keywords: businessContext.keywords,
+                additionalContext: businessContext.additionalContext,
+              }
+            : undefined
+        );
+
+        // If auto-processing is enabled and the AI says it's safe to auto-send,
+        // send the reply and mark the task completed.
+        if (
+          autoReply.shouldReply &&
+          !autoReply.requiresHumanReview &&
+          autoReplyEnabled &&
+          shouldAutoProcess
+        ) {
           await replyToEmail(userId, email, autoReply.replyBody, false);
           autoReplied++;
 
-          // Update task status
           await updateTaskStatus(taskId, "completed", {
             autoReplied: true,
             replyBody: autoReply.replyBody,
@@ -187,15 +338,17 @@ export async function processIncomingEmails(
 
           await logActivity(userId, "email:auto_replied", {
             emailId: email.id,
+            subject: email.subject,
             taskId,
             tone: autoReply.tone,
           });
-        } else if (autoReply.requiresHumanReview) {
-          // Store draft reply for human approval
-          await updateTaskWithDraft(taskId, autoReply);
+        } else if (autoReply.shouldReply) {
+          // Otherwise, save the AI-generated draft (subject + body) for human approval.
+          await updateTaskWithDraft(taskId, autoReply, email.subject);
 
           await logActivity(userId, "email:draft_created", {
             emailId: email.id,
+            subject: email.subject,
             taskId,
             reason: autoReply.reason,
           });
@@ -205,6 +358,7 @@ export async function processIncomingEmails(
       console.error(`Failed to process email ${email.id}:`, error);
       await logActivity(userId, "email:process_failed", {
         emailId: email.id,
+        subject: email.subject,
         error: String(error),
       });
     }
@@ -228,7 +382,7 @@ async function createEmailTask(
   const agentTasks = db.collection("agent_tasks");
 
   const task = {
-    userId: new ObjectId(userId),
+    userId: String(userId),
     agent: "email",
     source: "gmail",
     externalId: email.id,
@@ -285,7 +439,11 @@ async function updateTaskStatus(
 /**
  * Update task with draft reply for approval
  */
-async function updateTaskWithDraft(taskId: string, autoReply: AutoReply) {
+async function updateTaskWithDraft(
+  taskId: string,
+  autoReply: AutoReply,
+  subject?: string
+) {
   const agentTasks = db.collection("agent_tasks");
 
   await agentTasks.updateOne(
@@ -294,6 +452,7 @@ async function updateTaskWithDraft(taskId: string, autoReply: AutoReply) {
       $set: {
         status: "needs_approval",
         draftReply: {
+          subject: subject ?? "",
           body: autoReply.replyBody,
           tone: autoReply.tone,
           reason: autoReply.reason,
@@ -316,7 +475,7 @@ async function logActivity(
   const activityLog = db.collection("activity_log");
 
   await activityLog.insertOne({
-    userId: new ObjectId(userId),
+    userId: String(userId),
     action,
     metadata,
     timestamp: new Date(),
@@ -329,6 +488,7 @@ async function logActivity(
 export async function approveDraftReply(
   userId: string,
   taskId: string,
+  modifiedSubject?: string,
   modifiedBody?: string
 ): Promise<{ success: boolean; error?: string }> {
   const agentTasks = db.collection("agent_tasks");
@@ -343,6 +503,7 @@ export async function approveDraftReply(
   }
 
   const replyBody = modifiedBody || task.draftReply.body;
+  const replySubject = modifiedSubject || task.draftReply.subject;
 
   // Reconstruct the email for reply
   const originalEmail: EmailMessage = {
@@ -359,7 +520,46 @@ export async function approveDraftReply(
   };
 
   try {
-    await replyToEmail(userId, originalEmail, replyBody, false);
+    // Use modified subject if provided, otherwise AI draft, fallback to original
+    const finalSubject = replySubject || originalEmail.subject;
+
+    // Send using sendGmailEmail to allow subject override while keeping reply headers
+    const sendResult = await sendGmailEmail(userId, {
+      to: originalEmail.from.match(/<([^>]+)>/)?.[1] || originalEmail.from,
+      subject: finalSubject.startsWith("Re:")
+        ? finalSubject
+        : `Re: ${finalSubject}`,
+      body: replyBody,
+      isHtml: false,
+      replyToMessageId: originalEmail.id,
+      threadId: originalEmail.threadId,
+    });
+
+    if (!sendResult.success) {
+      return { success: false, error: sendResult.error };
+    }
+
+    // Store approved reply in approved_replies collection for learning
+    const approvedReplies = db.collection("approved_replies");
+    await approvedReplies.insertOne({
+      userId: String(userId),
+      taskId,
+      clientEmail:
+        originalEmail.from.match(/<([^>]+)>/)?.[1] || originalEmail.from,
+      originalSubject: originalEmail.subject,
+      originalBody: originalEmail.body,
+      sentSubject: finalSubject.startsWith("Re:")
+        ? finalSubject
+        : `Re: ${finalSubject}`,
+      sentBody: replyBody,
+      category: task.classification?.category,
+      sentiment: task.classification?.sentiment,
+      aiDraftSubject: task.draftReply?.subject,
+      aiDraftBody: task.draftReply?.body,
+      wasModified: !!modifiedSubject || !!modifiedBody,
+      approvedAt: new Date(),
+      createdAt: new Date(),
+    });
 
     // Update task status
     await agentTasks.updateOne(
@@ -371,6 +571,7 @@ export async function approveDraftReply(
             approved: true,
             sentBody: replyBody,
             sentAt: new Date(),
+            messageId: sendResult.messageId,
           },
           updatedAt: new Date(),
         },
@@ -379,7 +580,8 @@ export async function approveDraftReply(
 
     await logActivity(userId, "email:reply_approved", {
       taskId,
-      modified: !!modifiedBody,
+      subject: finalSubject,
+      modified: !!modifiedSubject || !!modifiedBody,
     });
 
     return { success: true };
@@ -398,6 +600,9 @@ export async function rejectDraftReply(
 ): Promise<{ success: boolean }> {
   const agentTasks = db.collection("agent_tasks");
 
+  // Get task to retrieve subject
+  const task = await agentTasks.findOne({ _id: new ObjectId(taskId) });
+
   await agentTasks.updateOne(
     { _id: new ObjectId(taskId) },
     {
@@ -415,6 +620,7 @@ export async function rejectDraftReply(
 
   await logActivity(userId, "email:reply_rejected", {
     taskId,
+    subject: task?.input?.subject,
     reason,
   });
 
@@ -441,9 +647,11 @@ export async function getEmailAnalytics(
 
   const tasks = await agentTasks
     .find({
-      userId: new ObjectId(userId),
-      agent: "email",
-      createdAt: { $gte: startDate },
+      $and: [
+        { agent: "email" },
+        { createdAt: { $gte: startDate } },
+        { $or: [{ userId: userId }, { userId: new ObjectId(userId) }] },
+      ],
     })
     .toArray();
 

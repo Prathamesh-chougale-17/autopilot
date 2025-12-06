@@ -46,6 +46,7 @@ export const gmailList = os
     z.object({
       maxResults: z.number().min(1).max(50).default(10),
       query: z.string().optional(),
+      includeProcessed: z.boolean().optional(),
     })
   )
   .output(z.object({ emails: z.array(emailSchema) }))
@@ -55,7 +56,9 @@ export const gmailList = os
     const emails = await getRecentEmails(
       session.user.id,
       input.maxResults,
-      input.query
+      input.query,
+      undefined,
+      input.includeProcessed ?? false
     );
     return { emails };
   });
@@ -97,7 +100,7 @@ export const gmailSend = os
     const dbClient = await client.connect();
     const db = dbClient.db(env.MONGODB_DB_NAME);
     await db.collection("activity_log").insertOne({
-      userId: session.user.id,
+      userId: String(session.user.id),
       action: "gmail:send",
       details: `Email sent to ${input.to}: ${input.subject}`,
       metadata: { to: input.to, subject: input.subject },
@@ -154,7 +157,7 @@ export const gmailReply = os
     const dbClient = await client.connect();
     const db = dbClient.db(env.MONGODB_DB_NAME);
     await db.collection("activity_log").insertOne({
-      userId: session.user.id,
+      userId: String(session.user.id),
       action: "gmail:reply",
       details: `Replied to email from ${input.originalFrom}`,
       metadata: {

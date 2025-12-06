@@ -1,5 +1,5 @@
 import { google } from "@ai-sdk/google";
-export const aiModel = google("gemini-2.5-flash");
+export const aiModel = google("gemini-2.5-flash-lite-preview-09-2025");
 export const aiConfig = {
   model: aiModel,
   temperature: 0.7,

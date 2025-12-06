@@ -90,7 +90,7 @@ export const setContext = os
 
       return {
         id: (existing.id ?? existing._id)?.toString(),
-        userId: session.user.id,
+        userId: String(session.user.id),
         ...input,
         createdAt: existing.createdAt ?? now,
         updatedAt: now,
@@ -99,7 +99,7 @@ export const setContext = os
       // Create new
       const newContext: BusinessContext = {
         id: new ObjectId().toHexString(),
-        userId: session.user.id,
+        userId: String(session.user.id),
         ...input,
         createdAt: now,
         updatedAt: now,
@@ -179,7 +179,7 @@ export const addCommonResponse = os
 
       return {
         id: (existing.id ?? existing._id)?.toString(),
-        userId: session.user.id,
+        userId: String(session.user.id),
         businessName: existing.businessName ?? undefined,
         industry: existing.industry ?? undefined,
         description: existing.description ?? undefined,
@@ -195,7 +195,7 @@ export const addCommonResponse = os
       // Create new context with the response
       const newContext: BusinessContext = {
         id: new ObjectId().toHexString(),
-        userId: session.user.id,
+        userId: String(session.user.id),
         tone: "professional",
         commonResponses: [input],
         keywords: [],

@@ -71,6 +71,12 @@ export function GmailInbox() {
     queryFn: () => client.gmail.status({}),
   });
 
+  // Get user settings for category preference
+  const { data: settings } = useQuery({
+    queryKey: ["autopilot", "toggles"],
+    queryFn: () => client.autopilot.getToggles({}),
+  });
+
   // Get emails
   const {
     data: emailsData,
@@ -78,7 +84,10 @@ export function GmailInbox() {
     refetch: refetchEmails,
   } = useQuery({
     queryKey: ["gmail", "list"],
-    queryFn: () => client.gmail.list({ maxResults: 20 }),
+    // Include processed emails here so deleted activity/tasks don't hide messages
+    // (safe UI-only change — processing still respects labels unless overridden)
+    queryFn: () =>
+      client.gmail.list({ maxResults: 20, includeProcessed: true }),
     enabled: status?.connected === true,
   });
 
@@ -110,8 +119,11 @@ export function GmailInbox() {
 
   // AI Process emails mutation
   const aiProcessMutation = useMutation({
-    mutationFn: (data: { maxEmails: number; autoProcess: boolean }) =>
-      client.ai.processEmails(data),
+    mutationFn: (data: {
+      maxEmails: number;
+      autoProcess: boolean;
+      category?: "all" | "primary" | "updates";
+    }) => client.ai.processEmails(data),
     onSuccess: (result) => {
       toast.success(
         `Processed ${result.processed} emails. ${result.tasks.length} tasks created, ${result.autoReplied} auto-replied.`
@@ -252,7 +264,8 @@ export function GmailInbox() {
                 onClick={() =>
                   aiProcessMutation.mutate({
                     maxEmails: 10,
-                    autoProcess: false,
+                    autoProcess: settings?.autoProcess ?? true,
+                    category: settings?.gmailCategory ?? "primary",
                   })
                 }
                 disabled={aiProcessMutation.isPending}
@@ -265,7 +278,7 @@ export function GmailInbox() {
                 ) : (
                   <>
                     <Bot className="h-4 w-4 mr-1" />
-                    AI Process
+                    AI Process ({settings?.gmailCategory ?? "primary"})
                   </>
                 )}
               </Button>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/orpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 interface TaskItem {
   id: string;
@@ -23,6 +26,7 @@ interface TaskItem {
     keyPoints?: string[];
   };
   draftReply?: {
+    subject?: string;
     body?: string;
     tone?: string;
     reason?: string;
@@ -31,6 +35,9 @@ interface TaskItem {
 
 export function ApprovalsPanel() {
   const queryClient = useQueryClient();
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editedSubject, setEditedSubject] = useState<string>("");
+  const [editedBody, setEditedBody] = useState<string>("");
 
   const { data, isPending, isError, error } = useQuery<TaskItem[]>({
     queryKey: ["autopilot", "approvals"],
@@ -57,14 +64,26 @@ export function ApprovalsPanel() {
     refetchInterval: 5000, // Refresh every 5 seconds
   });
 
-  const mutation = useMutation({
+  const approveMutation = useMutation({
     mutationFn: ({
       taskId,
-      status,
+      modifiedSubject,
+      modifiedBody,
     }: {
       taskId: string;
-      status: "approved" | "rejected";
-    }) => client.autopilot.setTaskStatus({ taskId, status }),
+      modifiedSubject?: string;
+      modifiedBody?: string;
+    }) => client.ai.approveReply({ taskId, modifiedSubject, modifiedBody }),
+    onSuccess: () => {
+      setEditingTaskId(null);
+      queryClient.invalidateQueries({ queryKey: ["autopilot", "approvals"] });
+      queryClient.invalidateQueries({ queryKey: ["autopilot", "activity"] });
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ taskId, reason }: { taskId: string; reason?: string }) =>
+      client.ai.rejectReply({ taskId, reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["autopilot", "approvals"] });
       queryClient.invalidateQueries({ queryKey: ["autopilot", "activity"] });
@@ -94,7 +113,7 @@ export function ApprovalsPanel() {
             </AlertDescription>
           </Alert>
         )}
-        {mutation.isError && (
+        {(approveMutation.isError || rejectMutation.isError) && (
           <Alert variant="destructive">
             <AlertDescription>Failed to update task</AlertDescription>
           </Alert>
@@ -188,7 +207,7 @@ export function ApprovalsPanel() {
 
                   {/* Draft Reply (if available) */}
                   {task.draftReply?.body && (
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">
                           AI Draft Reply:
@@ -198,10 +217,63 @@ export function ApprovalsPanel() {
                             {task.draftReply.tone}
                           </Badge>
                         )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            if (editingTaskId === task.id) {
+                              setEditingTaskId(null);
+                            } else {
+                              setEditingTaskId(task.id);
+                              setEditedSubject(task.draftReply?.subject || "");
+                              setEditedBody(task.draftReply?.body || "");
+                            }
+                          }}
+                        >
+                          {editingTaskId === task.id ? "Cancel Edit" : "Edit"}
+                        </Button>
                       </div>
-                      <div className="bg-muted rounded-md p-3 text-sm text-muted-foreground whitespace-pre-wrap">
-                        {task.draftReply.body}
-                      </div>
+                      {editingTaskId === task.id ? (
+                        <div className="space-y-2">
+                          <div>
+                            <label className="text-xs font-medium text-muted-foreground">
+                              Subject:
+                            </label>
+                            <Input
+                              value={editedSubject}
+                              onChange={(e) => setEditedSubject(e.target.value)}
+                              className="mt-1"
+                              placeholder="Reply subject"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-muted-foreground">
+                              Message:
+                            </label>
+                            <Textarea
+                              value={editedBody}
+                              onChange={(e) => setEditedBody(e.target.value)}
+                              rows={8}
+                              className="mt-1 font-mono text-sm"
+                              placeholder="Reply body"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {task.draftReply.subject && (
+                            <div className="text-sm">
+                              <span className="font-medium">Subject:</span>{" "}
+                              <span className="text-muted-foreground">
+                                {task.draftReply.subject}
+                              </span>
+                            </div>
+                          )}
+                          <div className="bg-muted rounded-md p-3 text-sm text-muted-foreground whitespace-pre-wrap">
+                            {task.draftReply.body}
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -217,20 +289,32 @@ export function ApprovalsPanel() {
                     <Button
                       size="sm"
                       variant="default"
-                      disabled={mutation.isPending}
-                      onClick={() =>
-                        mutation.mutate({ taskId: task.id, status: "approved" })
-                      }
+                      disabled={approveMutation.isPending}
+                      onClick={() => {
+                        if (editingTaskId === task.id) {
+                          approveMutation.mutate({
+                            taskId: task.id,
+                            modifiedSubject:
+                              editedSubject !== (task.draftReply?.subject || "")
+                                ? editedSubject
+                                : undefined,
+                            modifiedBody:
+                              editedBody !== (task.draftReply?.body || "")
+                                ? editedBody
+                                : undefined,
+                          });
+                        } else {
+                          approveMutation.mutate({ taskId: task.id });
+                        }
+                      }}
                     >
-                      Approve
+                      {editingTaskId === task.id ? "Save & Send" : "Approve"}
                     </Button>
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled={mutation.isPending}
-                      onClick={() =>
-                        mutation.mutate({ taskId: task.id, status: "rejected" })
-                      }
+                      disabled={rejectMutation.isPending}
+                      onClick={() => rejectMutation.mutate({ taskId: task.id })}
                     >
                       Reject
                     </Button>

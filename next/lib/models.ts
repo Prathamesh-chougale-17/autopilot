@@ -6,6 +6,8 @@ export const toggleSettingsSchema = z.object({
   autoInvoice: z.boolean().default(false),
   autoFollowUp: z.boolean().default(false),
   autoReporting: z.boolean().default(false),
+  gmailCategory: z.enum(["all", "primary", "updates"]).default("primary"),
+  autoProcess: z.boolean().default(true), // Auto-process emails on fetch
 });
 export type ToggleSettings = z.infer<typeof toggleSettingsSchema>;
 

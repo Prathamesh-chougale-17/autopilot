@@ -12,6 +12,8 @@ export const aiProcessEmails = os
     z.object({
       maxEmails: z.number().min(1).max(50).default(10),
       autoProcess: z.boolean().default(false),
+      category: z.enum(["all", "primary", "updates"]).default("primary"),
+      includeProcessed: z.boolean().optional(),
     })
   )
   .output(
@@ -27,6 +29,8 @@ export const aiProcessEmails = os
     return processIncomingEmails(session.user.id, {
       maxEmails: input.maxEmails,
       autoProcess: input.autoProcess,
+      category: input.category,
+      includeProcessed: input.includeProcessed ?? false,
     });
   });
 
@@ -35,6 +39,7 @@ export const aiApproveReply = os
   .input(
     z.object({
       taskId: z.string(),
+      modifiedSubject: z.string().optional(),
       modifiedBody: z.string().optional(),
     })
   )
@@ -47,7 +52,12 @@ export const aiApproveReply = os
   .route({ method: "POST", path: "/ai/approve-reply" })
   .handler(async ({ input }) => {
     const session = await getAuthSession();
-    return approveDraftReply(session.user.id, input.taskId, input.modifiedBody);
+    return approveDraftReply(
+      session.user.id,
+      input.taskId,
+      input.modifiedSubject,
+      input.modifiedBody
+    );
   });
 
 // Reject a draft reply
