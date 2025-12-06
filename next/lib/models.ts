@@ -91,3 +91,38 @@ export const summarySchema = z.object({
   paymentsReceived: z.number(),
 });
 export type Summary = z.infer<typeof summarySchema>;
+
+// Business context for AI email generation
+export const businessContextSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  businessName: z.string().optional(),
+  industry: z.string().optional(),
+  description: z.string().optional(),
+  tone: z
+    .enum(["formal", "friendly", "professional", "casual"])
+    .default("professional"),
+  signatureTemplate: z.string().optional(),
+  commonResponses: z
+    .array(
+      z.object({
+        label: z.string(),
+        template: z.string(),
+      })
+    )
+    .default([]),
+  keywords: z.array(z.string()).default([]),
+  additionalContext: z.string().optional(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+export type BusinessContext = z.infer<typeof businessContextSchema>;
+
+// Input schema for updating business context (without system fields)
+export const businessContextInputSchema = businessContextSchema.omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type BusinessContextInput = z.infer<typeof businessContextInputSchema>;

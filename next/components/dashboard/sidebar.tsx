@@ -9,6 +9,7 @@ import {
   Settings,
   Bot,
   User,
+  Briefcase,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -74,6 +75,11 @@ const navItems = [
 ];
 
 const settingsItems = [
+  {
+    title: "Business Context",
+    icon: Briefcase,
+    href: "/dashboard/context",
+  },
   {
     title: "Autopilot Settings",
     icon: Bot,

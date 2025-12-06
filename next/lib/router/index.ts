@@ -37,6 +37,13 @@ import {
   aiRejectReply,
   aiEmailAnalytics,
 } from "./ai";
+import {
+  getContext,
+  setContext,
+  deleteContext,
+  addCommonResponse,
+  removeCommonResponse,
+} from "./context";
 
 export const router = os.router({
   admin: os.router({
@@ -66,6 +73,13 @@ export const router = os.router({
     approveReply: aiApproveReply,
     rejectReply: aiRejectReply,
     emailAnalytics: aiEmailAnalytics,
+  }),
+  context: os.router({
+    get: getContext,
+    set: setContext,
+    delete: deleteContext,
+    addResponse: addCommonResponse,
+    removeResponse: removeCommonResponse,
   }),
 });
 export type Router = typeof router;
