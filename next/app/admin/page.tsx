@@ -13,15 +13,14 @@ export default async function AdminPage() {
     redirect("/sign-in");
   }
 
-  const isAdmin =
-    session.user.role === "admin" || session.user.role === "super-admin";
+  const isAdmin = session.user.role === "admin";
 
   if (!isAdmin) {
     redirect("/");
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900">
+    <div className="min-h-screen bg-linear-to-br from-zinc-900 via-zinc-800 to-zinc-900">
       <AdminHeader session={session} />
       <div className="container mx-auto p-6 space-y-6">
         <UserManagement />

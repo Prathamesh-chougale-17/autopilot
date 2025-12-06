@@ -22,7 +22,7 @@ export default async function DashboardPage() {
     redirect("/sign-in");
   }
 
-  const isAdmin = session.user.role === "admin" || session.user.role === "super-admin";
+  const isAdmin = session.user.role === "admin";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900">
@@ -43,7 +43,9 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{session.user.name}</div>
-              <p className="text-xs text-muted-foreground">{session.user.email}</p>
+              <p className="text-xs text-muted-foreground">
+                {session.user.email}
+              </p>
               <div className="mt-2">
                 <span className="inline-flex items-center rounded-full bg-zinc-800 px-2.5 py-0.5 text-xs font-medium text-zinc-300">
                   {session.user.role || "user"}
@@ -73,15 +75,25 @@ export default async function DashboardPage() {
           {isAdmin && (
             <Card className="border-amber-500/50 bg-amber-950/20">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Admin Panel</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Admin Panel
+                </CardTitle>
                 <Shield className="h-4 w-4 text-amber-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-amber-500">Access Granted</div>
-                <p className="text-xs text-muted-foreground">Manage users and roles</p>
+                <div className="text-2xl font-bold text-amber-500">
+                  Access Granted
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Manage users and roles
+                </p>
                 <div className="mt-4">
                   <Link href="/admin">
-                    <Button variant="outline" size="sm" className="border-amber-500/50 hover:bg-amber-950/40">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-500/50 hover:bg-amber-950/40"
+                    >
                       Open Admin
                     </Button>
                   </Link>
@@ -99,21 +111,33 @@ export default async function DashboardPage() {
           <CardContent>
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <dt className="text-sm font-medium text-muted-foreground">User ID</dt>
-                <dd className="mt-1 text-sm text-foreground">{session.user.id}</dd>
+                <dt className="text-sm font-medium text-muted-foreground">
+                  User ID
+                </dt>
+                <dd className="mt-1 text-sm text-foreground">
+                  {session.user.id}
+                </dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-muted-foreground">Session ID</dt>
-                <dd className="mt-1 text-sm text-foreground truncate">{session.session.id}</dd>
+                <dt className="text-sm font-medium text-muted-foreground">
+                  Session ID
+                </dt>
+                <dd className="mt-1 text-sm text-foreground truncate">
+                  {session.session.id}
+                </dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-muted-foreground">Created At</dt>
+                <dt className="text-sm font-medium text-muted-foreground">
+                  Created At
+                </dt>
                 <dd className="mt-1 text-sm text-foreground">
                   {new Date(session.session.createdAt).toLocaleString()}
                 </dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-muted-foreground">Expires At</dt>
+                <dt className="text-sm font-medium text-muted-foreground">
+                  Expires At
+                </dt>
                 <dd className="mt-1 text-sm text-foreground">
                   {new Date(session.session.expiresAt).toLocaleString()}
                 </dd>

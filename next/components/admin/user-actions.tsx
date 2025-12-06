@@ -188,7 +188,6 @@ export function UserActions({ user, onUpdate }: UserActionsProps) {
                 <SelectContent>
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="super-admin">Super Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -214,7 +213,8 @@ export function UserActions({ user, onUpdate }: UserActionsProps) {
           <DialogHeader>
             <DialogTitle>Ban User</DialogTitle>
             <DialogDescription>
-              This will prevent {user.name || user.email} from accessing the platform
+              This will prevent {user.name || user.email} from accessing the
+              platform
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -253,8 +253,8 @@ export function UserActions({ user, onUpdate }: UserActionsProps) {
           <DialogHeader>
             <DialogTitle>Delete User</DialogTitle>
             <DialogDescription>
-              Are you sure you want to permanently delete {user.name || user.email}? This
-              action cannot be undone.
+              Are you sure you want to permanently delete{" "}
+              {user.name || user.email}? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

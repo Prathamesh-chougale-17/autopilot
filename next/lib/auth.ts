@@ -28,7 +28,7 @@ export const auth = betterAuth({
   plugins: [
     admin({
       defaultRole: "user",
-      adminRoles: ["admin", "super-admin"],
+      adminRoles: ["admin"],
       impersonationSessionDuration: 3600, // 1 hour
       defaultBanReason: "Violated terms of service",
       bannedUserMessage:
