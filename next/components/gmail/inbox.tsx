@@ -34,6 +34,8 @@ import {
   RefreshCw,
   AlertCircle,
   Inbox,
+  Bot,
+  Sparkles,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
@@ -103,6 +105,22 @@ export function GmailInbox() {
       queryClient.invalidateQueries({ queryKey: ["gmail"] });
       setSelectedEmail(null);
       toast.success("Email archived");
+    },
+  });
+
+  // AI Process emails mutation
+  const aiProcessMutation = useMutation({
+    mutationFn: (data: { maxEmails: number; autoProcess: boolean }) =>
+      client.ai.processEmails(data),
+    onSuccess: (result) => {
+      toast.success(
+        `Processed ${result.processed} emails. ${result.tasks.length} tasks created, ${result.autoReplied} auto-replied.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["gmail"] });
+      queryClient.invalidateQueries({ queryKey: ["autopilot"] });
+    },
+    onError: (error) => {
+      toast.error(`AI processing failed: ${error.message}`);
     },
   });
 
@@ -228,6 +246,29 @@ export function GmailInbox() {
               <CardDescription>Connected as {status.email}</CardDescription>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  aiProcessMutation.mutate({
+                    maxEmails: 10,
+                    autoProcess: false,
+                  })
+                }
+                disabled={aiProcessMutation.isPending}
+              >
+                {aiProcessMutation.isPending ? (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-1 animate-pulse" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Bot className="h-4 w-4 mr-1" />
+                    AI Process
+                  </>
+                )}
+              </Button>
               <Button
                 variant="outline"
                 size="sm"

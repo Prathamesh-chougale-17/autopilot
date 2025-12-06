@@ -23,6 +23,12 @@ import {
   markAsRead,
   archiveEmail,
 } from "@/lib/connectors/gmail";
+import {
+  processIncomingEmails,
+  approveDraftReply,
+  rejectDraftReply,
+  getEmailAnalytics,
+} from "@/lib/ai/email-processor";
 
 // Example procedure - replace with your actual procedures
 const hello = os
@@ -219,9 +225,15 @@ const listActivity = os
     const db = dbClient.db(env.MONGODB_DB_NAME);
     const logs = db.collection("activity_log");
 
+    // Query by both string and ObjectId to handle both formats
     const items = await logs
-      .find({ userId: session.user.id })
-      .sort({ createdAt: -1 })
+      .find({
+        $or: [
+          { userId: session.user.id },
+          { userId: new ObjectId(session.user.id) },
+        ],
+      })
+      .sort({ createdAt: -1, timestamp: -1 })
       .limit(input.limit)
       .toArray();
 
@@ -229,10 +241,10 @@ const listActivity = os
       items: items.map((item) =>
         activityLogSchema.parse({
           id: item.id ?? item._id?.toString(),
-          userId: item.userId,
-          action: item.action,
-          context: item.context,
-          createdAt: item.createdAt ?? new Date(),
+          userId: item.userId?.toString() ?? session.user.id,
+          action: item.action ?? item.details ?? "unknown",
+          context: item.context ?? item.metadata ?? {},
+          createdAt: item.createdAt ?? item.timestamp ?? new Date(),
         })
       ),
     };
@@ -266,7 +278,13 @@ const listTasks = os
     const db = dbClient.db(env.MONGODB_DB_NAME);
     const tasks = db.collection("agent_tasks");
 
-    const query: Record<string, unknown> = { userId: session.user.id };
+    // Query by both string and ObjectId to handle both formats
+    const query: Record<string, unknown> = {
+      $or: [
+        { userId: session.user.id },
+        { userId: new ObjectId(session.user.id) },
+      ],
+    };
     if (input.status) query.status = input.status;
 
     const items = await tasks
@@ -314,14 +332,28 @@ const setTaskStatus = os
     const db = dbClient.db(env.MONGODB_DB_NAME);
     const tasks = db.collection("agent_tasks");
 
-    const existing = await tasks.findOne({ id: input.taskId });
-    if (!existing || existing.userId !== session.user.id) {
-      throw new Error("Task not found or unauthorized");
+    // Try to find by _id (ObjectId)
+    let existing;
+    try {
+      existing = await tasks.findOne({ _id: new ObjectId(input.taskId) });
+    } catch {
+      // If invalid ObjectId format, try by id field
+      existing = await tasks.findOne({ id: input.taskId });
+    }
+
+    if (!existing) {
+      throw new Error("Task not found");
+    }
+
+    // Check authorization - handle both string and ObjectId userId
+    const taskUserId = existing.userId?.toString();
+    if (taskUserId !== session.user.id) {
+      throw new Error("Unauthorized");
     }
 
     const now = new Date();
     await tasks.updateOne(
-      { id: input.taskId },
+      { _id: existing._id },
       {
         $set: {
           status: input.status,
@@ -332,7 +364,7 @@ const setTaskStatus = os
       }
     );
 
-    const updated = await tasks.findOne({ id: input.taskId });
+    const updated = await tasks.findOne({ _id: existing._id });
     if (!updated) throw new Error("Failed to update task");
 
     const logs = db.collection("activity_log");
@@ -818,6 +850,96 @@ const gmailArchive = os
     return { success };
   });
 
+// ============================================
+// AI Email Processing
+// ============================================
+
+// Process incoming emails with AI
+const aiProcessEmails = os
+  .input(
+    z.object({
+      maxEmails: z.number().min(1).max(50).default(10),
+      autoProcess: z.boolean().default(false),
+    })
+  )
+  .output(
+    z.object({
+      processed: z.number(),
+      tasks: z.array(z.string()),
+      autoReplied: z.number(),
+    })
+  )
+  .route({ method: "POST", path: "/ai/process-emails" })
+  .handler(async ({ input }) => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) throw new Error("Unauthorized");
+
+    return processIncomingEmails(session.user.id, {
+      maxEmails: input.maxEmails,
+      autoProcess: input.autoProcess,
+    });
+  });
+
+// Approve a draft reply
+const aiApproveReply = os
+  .input(
+    z.object({
+      taskId: z.string(),
+      modifiedBody: z.string().optional(),
+    })
+  )
+  .output(
+    z.object({
+      success: z.boolean(),
+      error: z.string().optional(),
+    })
+  )
+  .route({ method: "POST", path: "/ai/approve-reply" })
+  .handler(async ({ input }) => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) throw new Error("Unauthorized");
+
+    return approveDraftReply(session.user.id, input.taskId, input.modifiedBody);
+  });
+
+// Reject a draft reply
+const aiRejectReply = os
+  .input(
+    z.object({
+      taskId: z.string(),
+      reason: z.string().optional(),
+    })
+  )
+  .output(z.object({ success: z.boolean() }))
+  .route({ method: "POST", path: "/ai/reject-reply" })
+  .handler(async ({ input }) => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) throw new Error("Unauthorized");
+
+    return rejectDraftReply(session.user.id, input.taskId, input.reason);
+  });
+
+// Get email analytics
+const aiEmailAnalytics = os
+  .input(z.object({ days: z.number().min(1).max(90).default(7) }))
+  .output(
+    z.object({
+      totalProcessed: z.number(),
+      autoReplied: z.number(),
+      needsApproval: z.number(),
+      byCategory: z.record(z.string(), z.number()),
+      bySentiment: z.record(z.string(), z.number()),
+      averageConfidence: z.number(),
+    })
+  )
+  .route({ method: "GET", path: "/ai/email-analytics" })
+  .handler(async ({ input }) => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) throw new Error("Unauthorized");
+
+    return getEmailAnalytics(session.user.id, input.days);
+  });
+
 export const router = os.router({
   hello,
   admin: os.router({
@@ -841,6 +963,12 @@ export const router = os.router({
     reply: gmailReply,
     markRead: gmailMarkRead,
     archive: gmailArchive,
+  }),
+  ai: os.router({
+    processEmails: aiProcessEmails,
+    approveReply: aiApproveReply,
+    rejectReply: aiRejectReply,
+    emailAnalytics: aiEmailAnalytics,
   }),
 });
 export type Router = typeof router;
