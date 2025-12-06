@@ -3,26 +3,35 @@ import { getSessionCookie } from "better-auth/cookies";
 
 export async function proxy(request: NextRequest) {
   const sessionCookie = getSessionCookie(request);
-  const PUBLIC_ROUTES = ["/", "/sign-in", "/sign-up"];
+  const AUTH_ROUTES = ["/sign-in", "/sign-up", "/sign-in-otp"];
+  const PROTECTED_ROUTES = ["/dashboard", "/admin"];
 
-  // Protect dashboard routes
-  if (!PUBLIC_ROUTES.includes(request.nextUrl.pathname)) {
-    if (!sessionCookie) {
-      return NextResponse.redirect(new URL("/sign-in", request.url));
-    }
+  const pathname = request.nextUrl.pathname;
+  const isAuthRoute = AUTH_ROUTES.includes(pathname);
+  const isProtectedRoute = PROTECTED_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(route + "/")
+  );
+
+  // If user has session cookie and tries to access auth pages, redirect to dashboard
+  // Note: The actual session validation happens in the page component
+  if (sessionCookie && isAuthRoute) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // Redirect authenticated users away from auth pages
-  if (
-    sessionCookie &&
-    (request.nextUrl.pathname === "/sign-in" ||
-      request.nextUrl.pathname === "/sign-up")
-  ) {
-    return NextResponse.redirect(new URL("/", request.url));
+  // If no session cookie and trying to access protected routes, redirect to sign-in
+  if (!sessionCookie && isProtectedRoute) {
+    return NextResponse.redirect(new URL("/sign-in", request.url));
   }
 
   return NextResponse.next();
 }
+
 export const config = {
-  matcher: ["/dashboard", "/admin/:path*", "/sign-in", "/sign-up"], // Apply middleware to specific routes
+  matcher: [
+    "/dashboard",
+    "/admin/:path*",
+    "/sign-in",
+    "/sign-up",
+    "/sign-in-otp",
+  ],
 };
