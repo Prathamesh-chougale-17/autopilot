@@ -14,6 +14,15 @@ import {
   type ActivityLog,
   type ToggleSettings,
 } from "@/lib/models";
+import {
+  checkGmailConnection,
+  getRecentEmails,
+  getUnreadCount,
+  sendGmailEmail,
+  replyToEmail,
+  markAsRead,
+  archiveEmail,
+} from "@/lib/connectors/gmail";
 
 // Example procedure - replace with your actual procedures
 const hello = os
@@ -612,6 +621,203 @@ const getReport = os
     };
   });
 
+// ============================================
+// Gmail Router
+// ============================================
+
+const emailSchema = z.object({
+  id: z.string(),
+  threadId: z.string(),
+  from: z.string(),
+  to: z.string(),
+  subject: z.string(),
+  snippet: z.string(),
+  body: z.string(),
+  date: z.date(),
+  isUnread: z.boolean(),
+  labels: z.array(z.string()),
+});
+
+// Check Gmail connection status
+const gmailStatus = os
+  .input(z.object({}))
+  .output(
+    z.object({
+      connected: z.boolean(),
+      email: z.string().optional(),
+      error: z.string().optional(),
+    })
+  )
+  .route({ method: "GET", path: "/gmail/status" })
+  .handler(async () => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) throw new Error("Unauthorized");
+
+    return checkGmailConnection(session.user.id);
+  });
+
+// Get recent emails
+const gmailList = os
+  .input(
+    z.object({
+      maxResults: z.number().min(1).max(50).default(10),
+      query: z.string().optional(),
+    })
+  )
+  .output(z.object({ emails: z.array(emailSchema) }))
+  .route({ method: "GET", path: "/gmail/list" })
+  .handler(async ({ input }) => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) throw new Error("Unauthorized");
+
+    const emails = await getRecentEmails(
+      session.user.id,
+      input.maxResults,
+      input.query
+    );
+
+    return { emails };
+  });
+
+// Get unread count
+const gmailUnreadCount = os
+  .input(z.object({}))
+  .output(z.object({ count: z.number() }))
+  .route({ method: "GET", path: "/gmail/unread" })
+  .handler(async () => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) throw new Error("Unauthorized");
+
+    const count = await getUnreadCount(session.user.id);
+    return { count };
+  });
+
+// Send a new email
+const gmailSend = os
+  .input(
+    z.object({
+      to: z.string().email(),
+      subject: z.string(),
+      body: z.string(),
+      isHtml: z.boolean().default(false),
+    })
+  )
+  .output(
+    z.object({
+      success: z.boolean(),
+      messageId: z.string().optional(),
+      error: z.string().optional(),
+    })
+  )
+  .route({ method: "POST", path: "/gmail/send" })
+  .handler(async ({ input }) => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) throw new Error("Unauthorized");
+
+    const result = await sendGmailEmail(session.user.id, input);
+
+    // Log activity
+    const dbClient = await client.connect();
+    const db = dbClient.db(env.MONGODB_DB_NAME);
+    await db.collection("activity_log").insertOne({
+      userId: session.user.id,
+      action: "gmail:send",
+      details: `Email sent to ${input.to}: ${input.subject}`,
+      metadata: { to: input.to, subject: input.subject },
+      timestamp: new Date(),
+    });
+
+    return result;
+  });
+
+// Reply to an email
+const gmailReply = os
+  .input(
+    z.object({
+      emailId: z.string(),
+      threadId: z.string(),
+      originalFrom: z.string(),
+      originalSubject: z.string(),
+      body: z.string(),
+      isHtml: z.boolean().default(false),
+    })
+  )
+  .output(
+    z.object({
+      success: z.boolean(),
+      messageId: z.string().optional(),
+      error: z.string().optional(),
+    })
+  )
+  .route({ method: "POST", path: "/gmail/reply" })
+  .handler(async ({ input }) => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) throw new Error("Unauthorized");
+
+    const originalEmail = {
+      id: input.emailId,
+      threadId: input.threadId,
+      from: input.originalFrom,
+      to: "",
+      subject: input.originalSubject,
+      snippet: "",
+      body: "",
+      date: new Date(),
+      isUnread: false,
+      labels: [],
+    };
+
+    const result = await replyToEmail(
+      session.user.id,
+      originalEmail,
+      input.body,
+      input.isHtml
+    );
+
+    // Log activity
+    const dbClient = await client.connect();
+    const db = dbClient.db(env.MONGODB_DB_NAME);
+    await db.collection("activity_log").insertOne({
+      userId: session.user.id,
+      action: "gmail:reply",
+      details: `Replied to email from ${input.originalFrom}`,
+      metadata: {
+        emailId: input.emailId,
+        threadId: input.threadId,
+        from: input.originalFrom,
+      },
+      timestamp: new Date(),
+    });
+
+    return result;
+  });
+
+// Mark email as read
+const gmailMarkRead = os
+  .input(z.object({ messageId: z.string() }))
+  .output(z.object({ success: z.boolean() }))
+  .route({ method: "POST", path: "/gmail/read" })
+  .handler(async ({ input }) => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) throw new Error("Unauthorized");
+
+    const success = await markAsRead(session.user.id, input.messageId);
+    return { success };
+  });
+
+// Archive email
+const gmailArchive = os
+  .input(z.object({ messageId: z.string() }))
+  .output(z.object({ success: z.boolean() }))
+  .route({ method: "POST", path: "/gmail/archive" })
+  .handler(async ({ input }) => {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) throw new Error("Unauthorized");
+
+    const success = await archiveEmail(session.user.id, input.messageId);
+    return { success };
+  });
+
 export const router = os.router({
   hello,
   admin: os.router({
@@ -626,6 +832,15 @@ export const router = os.router({
     listActivity,
     getSummary,
     getReport,
+  }),
+  gmail: os.router({
+    status: gmailStatus,
+    list: gmailList,
+    unreadCount: gmailUnreadCount,
+    send: gmailSend,
+    reply: gmailReply,
+    markRead: gmailMarkRead,
+    archive: gmailArchive,
   }),
 });
 export type Router = typeof router;

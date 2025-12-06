@@ -1,5 +1,6 @@
 "use client";
 
+import { SignOutButton } from "./auth/sign-out-button";
 import { AnimatedThemeToggler } from "./theme-toggle";
 
 export function Navbar() {
@@ -12,6 +13,7 @@ export function Navbar() {
 
         <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
           <AnimatedThemeToggler />
+          <SignOutButton />
         </div>
       </div>
     </nav>

@@ -12,6 +12,7 @@ import { AutopilotToggles } from "@/components/autopilot/toggles";
 import { ApprovalsPanel } from "@/components/autopilot/approvals";
 import { ActivityLogPanel } from "@/components/autopilot/activity-log";
 import { ReportsDashboard } from "@/components/autopilot/reports-dashboard";
+import { GmailInbox } from "@/components/gmail/inbox";
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({
@@ -29,6 +30,9 @@ export default async function DashboardPage() {
           <AutopilotToggles />
           <ApprovalsPanel />
         </div>
+
+        {/* Gmail Integration */}
+        <GmailInbox />
 
         <ActivityLogPanel />
 
