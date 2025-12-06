@@ -1,8 +1,5 @@
-import { os } from "@orpc/server";
-import { z } from "zod";
-import { headers } from "next/headers";
+import { os, z, getAuthSession } from "./helpers";
 import { ObjectId } from "mongodb";
-import { auth } from "@/lib/auth";
 import client from "@/lib/mongodb";
 import { env } from "@/env";
 import {
@@ -14,114 +11,14 @@ import {
   type ActivityLog,
   type ToggleSettings,
 } from "@/lib/models";
-import {
-  checkGmailConnection,
-  getRecentEmails,
-  getUnreadCount,
-  sendGmailEmail,
-  replyToEmail,
-  markAsRead,
-  archiveEmail,
-} from "@/lib/connectors/gmail";
-import {
-  processIncomingEmails,
-  approveDraftReply,
-  rejectDraftReply,
-  getEmailAnalytics,
-} from "@/lib/ai/email-processor";
-
-// Example procedure - replace with your actual procedures
-const hello = os
-  .input(
-    z.object({
-      name: z.string(),
-    })
-  )
-  .output(
-    z.object({
-      message: z.string(),
-    })
-  )
-  .route({
-    method: "GET",
-    path: "/hello",
-  })
-  .handler(async ({ input }) => {
-    return {
-      message: `Hello, ${input.name}!`,
-    };
-  });
-
-// Admin: Get all users
-const getUsers = os
-  .input(z.object({}))
-  .output(
-    z.object({
-      users: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string().nullable(),
-          email: z.string(),
-          role: z.string(),
-          banned: z.boolean(),
-          banReason: z.string().nullable().optional(),
-          banExpires: z.date().nullable().optional(),
-          createdAt: z.date().nullable().optional(),
-        })
-      ),
-    })
-  )
-  .route({
-    method: "GET",
-    path: "/admin/users",
-  })
-  .handler(async () => {
-    // Check if user is authenticated and is an admin
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      throw new Error("Unauthorized");
-    }
-
-    const isAdmin = session.user.role === "admin";
-    if (!isAdmin) {
-      throw new Error("Forbidden: Admin access required");
-    }
-
-    // Fetch all users from MongoDB
-    const dbClient = await client.connect();
-    const db = dbClient.db(env.MONGODB_DB_NAME);
-    const usersCollection = db.collection("user");
-
-    const users = await usersCollection
-      .find({})
-      .sort({ createdAt: -1 })
-      .toArray();
-
-    return {
-      users: users.map((user) => ({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role || "user",
-        banned: user.banned || false,
-        banReason: user.banReason,
-        banExpires: user.banExpires,
-        createdAt: user.createdAt,
-      })),
-    };
-  });
 
 // Get toggles for current user
-const getToggles = os
+export const getToggles = os
   .input(z.object({}))
   .output(toggleSettingsSchema)
   .route({ method: "GET", path: "/toggles" })
   .handler(async () => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
+    const session = await getAuthSession();
 
     const dbClient = await client.connect();
     const db = dbClient.db(env.MONGODB_DB_NAME);
@@ -148,13 +45,12 @@ const getToggles = os
   });
 
 // Update toggles for current user
-const setToggles = os
+export const setToggles = os
   .input(toggleSettingsSchema)
   .output(toggleSettingsSchema)
   .route({ method: "POST", path: "/toggles" })
   .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
+    const session = await getAuthSession();
 
     const dbClient = await client.connect();
     const db = dbClient.db(env.MONGODB_DB_NAME);
@@ -169,8 +65,8 @@ const setToggles = os
     return input;
   });
 
-// Create an agent task (stores and awaits processing)
-const createTask = os
+// Create an agent task
+export const createTask = os
   .input(
     agentTaskSchema.omit({
       id: true,
@@ -182,8 +78,7 @@ const createTask = os
   .output(agentTaskSchema)
   .route({ method: "POST", path: "/tasks" })
   .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
+    const session = await getAuthSession();
 
     const now = new Date();
     const task: AgentTask = {
@@ -212,20 +107,18 @@ const createTask = os
     return task;
   });
 
-// List recent activity for transparency
-const listActivity = os
+// List recent activity
+export const listActivity = os
   .input(z.object({ limit: z.number().min(1).max(100).default(50) }))
   .output(z.object({ items: z.array(activityLogSchema) }))
   .route({ method: "GET", path: "/activity" })
   .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
+    const session = await getAuthSession();
 
     const dbClient = await client.connect();
     const db = dbClient.db(env.MONGODB_DB_NAME);
     const logs = db.collection("activity_log");
 
-    // Query by both string and ObjectId to handle both formats
     const items = await logs
       .find({
         $or: [
@@ -250,8 +143,8 @@ const listActivity = os
     };
   });
 
-// List tasks (for approvals and status visibility)
-const listTasks = os
+// List tasks
+export const listTasks = os
   .input(
     z.object({
       status: z
@@ -271,14 +164,12 @@ const listTasks = os
   .output(z.object({ items: z.array(agentTaskSchema) }))
   .route({ method: "GET", path: "/tasks" })
   .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
+    const session = await getAuthSession();
 
     const dbClient = await client.connect();
     const db = dbClient.db(env.MONGODB_DB_NAME);
     const tasks = db.collection("agent_tasks");
 
-    // Query by both string and ObjectId to handle both formats
     const query: Record<string, unknown> = {
       $or: [
         { userId: session.user.id },
@@ -312,8 +203,8 @@ const listTasks = os
     };
   });
 
-// Approve/reject/update a task status
-const setTaskStatus = os
+// Update task status
+export const setTaskStatus = os
   .input(
     z.object({
       taskId: z.string(),
@@ -325,19 +216,16 @@ const setTaskStatus = os
   .output(agentTaskSchema)
   .route({ method: "POST", path: "/tasks/status" })
   .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
+    const session = await getAuthSession();
 
     const dbClient = await client.connect();
     const db = dbClient.db(env.MONGODB_DB_NAME);
     const tasks = db.collection("agent_tasks");
 
-    // Try to find by _id (ObjectId)
     let existing;
     try {
       existing = await tasks.findOne({ _id: new ObjectId(input.taskId) });
     } catch {
-      // If invalid ObjectId format, try by id field
       existing = await tasks.findOne({ id: input.taskId });
     }
 
@@ -345,7 +233,6 @@ const setTaskStatus = os
       throw new Error("Task not found");
     }
 
-    // Check authorization - handle both string and ObjectId userId
     const taskUserId = existing.userId?.toString();
     if (taskUserId !== session.user.id) {
       throw new Error("Unauthorized");
@@ -392,14 +279,13 @@ const setTaskStatus = os
     });
   });
 
-// Daily/weekly summary (lightweight aggregation placeholder)
-const getSummary = os
+// Get summary
+export const getSummary = os
   .input(z.object({ window: z.enum(["daily", "weekly"]).default("daily") }))
   .output(summarySchema)
   .route({ method: "GET", path: "/summary" })
   .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
+    const session = await getAuthSession();
 
     const dbClient = await client.connect();
     const db = dbClient.db(env.MONGODB_DB_NAME);
@@ -407,7 +293,6 @@ const getSummary = os
     const invoices = db.collection("invoices");
     const contacts = db.collection("crm_contacts");
 
-    // Calculate date range based on window
     const now = new Date();
     const startDate = new Date();
     if (input.window === "daily") {
@@ -456,8 +341,8 @@ const getSummary = os
     };
   });
 
-// Get detailed report data
-const getReport = os
+// Get detailed report
+export const getReport = os
   .input(
     z.object({
       window: z.enum(["daily", "weekly", "monthly"]).default("daily"),
@@ -493,8 +378,7 @@ const getReport = os
   )
   .route({ method: "GET", path: "/report" })
   .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
+    const session = await getAuthSession();
 
     const dbClient = await client.connect();
     const db = dbClient.db(env.MONGODB_DB_NAME);
@@ -503,7 +387,6 @@ const getReport = os
     const contacts = db.collection("crm_contacts");
     const logs = db.collection("activity_log");
 
-    // Calculate date range
     const endDate = new Date();
     const startDate = new Date();
     if (input.window === "daily") {
@@ -652,323 +535,3 @@ const getReport = os
       },
     };
   });
-
-// ============================================
-// Gmail Router
-// ============================================
-
-const emailSchema = z.object({
-  id: z.string(),
-  threadId: z.string(),
-  from: z.string(),
-  to: z.string(),
-  subject: z.string(),
-  snippet: z.string(),
-  body: z.string(),
-  date: z.date(),
-  isUnread: z.boolean(),
-  labels: z.array(z.string()),
-});
-
-// Check Gmail connection status
-const gmailStatus = os
-  .input(z.object({}))
-  .output(
-    z.object({
-      connected: z.boolean(),
-      email: z.string().optional(),
-      error: z.string().optional(),
-    })
-  )
-  .route({ method: "GET", path: "/gmail/status" })
-  .handler(async () => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
-
-    return checkGmailConnection(session.user.id);
-  });
-
-// Get recent emails
-const gmailList = os
-  .input(
-    z.object({
-      maxResults: z.number().min(1).max(50).default(10),
-      query: z.string().optional(),
-    })
-  )
-  .output(z.object({ emails: z.array(emailSchema) }))
-  .route({ method: "GET", path: "/gmail/list" })
-  .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
-
-    const emails = await getRecentEmails(
-      session.user.id,
-      input.maxResults,
-      input.query
-    );
-
-    return { emails };
-  });
-
-// Get unread count
-const gmailUnreadCount = os
-  .input(z.object({}))
-  .output(z.object({ count: z.number() }))
-  .route({ method: "GET", path: "/gmail/unread" })
-  .handler(async () => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
-
-    const count = await getUnreadCount(session.user.id);
-    return { count };
-  });
-
-// Send a new email
-const gmailSend = os
-  .input(
-    z.object({
-      to: z.string().email(),
-      subject: z.string(),
-      body: z.string(),
-      isHtml: z.boolean().default(false),
-    })
-  )
-  .output(
-    z.object({
-      success: z.boolean(),
-      messageId: z.string().optional(),
-      error: z.string().optional(),
-    })
-  )
-  .route({ method: "POST", path: "/gmail/send" })
-  .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
-
-    const result = await sendGmailEmail(session.user.id, input);
-
-    // Log activity
-    const dbClient = await client.connect();
-    const db = dbClient.db(env.MONGODB_DB_NAME);
-    await db.collection("activity_log").insertOne({
-      userId: session.user.id,
-      action: "gmail:send",
-      details: `Email sent to ${input.to}: ${input.subject}`,
-      metadata: { to: input.to, subject: input.subject },
-      timestamp: new Date(),
-    });
-
-    return result;
-  });
-
-// Reply to an email
-const gmailReply = os
-  .input(
-    z.object({
-      emailId: z.string(),
-      threadId: z.string(),
-      originalFrom: z.string(),
-      originalSubject: z.string(),
-      body: z.string(),
-      isHtml: z.boolean().default(false),
-    })
-  )
-  .output(
-    z.object({
-      success: z.boolean(),
-      messageId: z.string().optional(),
-      error: z.string().optional(),
-    })
-  )
-  .route({ method: "POST", path: "/gmail/reply" })
-  .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
-
-    const originalEmail = {
-      id: input.emailId,
-      threadId: input.threadId,
-      from: input.originalFrom,
-      to: "",
-      subject: input.originalSubject,
-      snippet: "",
-      body: "",
-      date: new Date(),
-      isUnread: false,
-      labels: [],
-    };
-
-    const result = await replyToEmail(
-      session.user.id,
-      originalEmail,
-      input.body,
-      input.isHtml
-    );
-
-    // Log activity
-    const dbClient = await client.connect();
-    const db = dbClient.db(env.MONGODB_DB_NAME);
-    await db.collection("activity_log").insertOne({
-      userId: session.user.id,
-      action: "gmail:reply",
-      details: `Replied to email from ${input.originalFrom}`,
-      metadata: {
-        emailId: input.emailId,
-        threadId: input.threadId,
-        from: input.originalFrom,
-      },
-      timestamp: new Date(),
-    });
-
-    return result;
-  });
-
-// Mark email as read
-const gmailMarkRead = os
-  .input(z.object({ messageId: z.string() }))
-  .output(z.object({ success: z.boolean() }))
-  .route({ method: "POST", path: "/gmail/read" })
-  .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
-
-    const success = await markAsRead(session.user.id, input.messageId);
-    return { success };
-  });
-
-// Archive email
-const gmailArchive = os
-  .input(z.object({ messageId: z.string() }))
-  .output(z.object({ success: z.boolean() }))
-  .route({ method: "POST", path: "/gmail/archive" })
-  .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
-
-    const success = await archiveEmail(session.user.id, input.messageId);
-    return { success };
-  });
-
-// ============================================
-// AI Email Processing
-// ============================================
-
-// Process incoming emails with AI
-const aiProcessEmails = os
-  .input(
-    z.object({
-      maxEmails: z.number().min(1).max(50).default(10),
-      autoProcess: z.boolean().default(false),
-    })
-  )
-  .output(
-    z.object({
-      processed: z.number(),
-      tasks: z.array(z.string()),
-      autoReplied: z.number(),
-    })
-  )
-  .route({ method: "POST", path: "/ai/process-emails" })
-  .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
-
-    return processIncomingEmails(session.user.id, {
-      maxEmails: input.maxEmails,
-      autoProcess: input.autoProcess,
-    });
-  });
-
-// Approve a draft reply
-const aiApproveReply = os
-  .input(
-    z.object({
-      taskId: z.string(),
-      modifiedBody: z.string().optional(),
-    })
-  )
-  .output(
-    z.object({
-      success: z.boolean(),
-      error: z.string().optional(),
-    })
-  )
-  .route({ method: "POST", path: "/ai/approve-reply" })
-  .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
-
-    return approveDraftReply(session.user.id, input.taskId, input.modifiedBody);
-  });
-
-// Reject a draft reply
-const aiRejectReply = os
-  .input(
-    z.object({
-      taskId: z.string(),
-      reason: z.string().optional(),
-    })
-  )
-  .output(z.object({ success: z.boolean() }))
-  .route({ method: "POST", path: "/ai/reject-reply" })
-  .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
-
-    return rejectDraftReply(session.user.id, input.taskId, input.reason);
-  });
-
-// Get email analytics
-const aiEmailAnalytics = os
-  .input(z.object({ days: z.number().min(1).max(90).default(7) }))
-  .output(
-    z.object({
-      totalProcessed: z.number(),
-      autoReplied: z.number(),
-      needsApproval: z.number(),
-      byCategory: z.record(z.string(), z.number()),
-      bySentiment: z.record(z.string(), z.number()),
-      averageConfidence: z.number(),
-    })
-  )
-  .route({ method: "GET", path: "/ai/email-analytics" })
-  .handler(async ({ input }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) throw new Error("Unauthorized");
-
-    return getEmailAnalytics(session.user.id, input.days);
-  });
-
-export const router = os.router({
-  hello,
-  admin: os.router({
-    getUsers,
-  }),
-  autopilot: os.router({
-    getToggles,
-    setToggles,
-    createTask,
-    listTasks,
-    setTaskStatus,
-    listActivity,
-    getSummary,
-    getReport,
-  }),
-  gmail: os.router({
-    status: gmailStatus,
-    list: gmailList,
-    unreadCount: gmailUnreadCount,
-    send: gmailSend,
-    reply: gmailReply,
-    markRead: gmailMarkRead,
-    archive: gmailArchive,
-  }),
-  ai: os.router({
-    processEmails: aiProcessEmails,
-    approveReply: aiApproveReply,
-    rejectReply: aiRejectReply,
-    emailAnalytics: aiEmailAnalytics,
-  }),
-});
-export type Router = typeof router;
