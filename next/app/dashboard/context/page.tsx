@@ -246,7 +246,7 @@ export default function ContextPage() {
           <div className="mb-8">
             <h2 className="text-3xl font-bold tracking-tight mb-2">Configure Your AI Identity</h2>
             <p className="text-muted-foreground text-lg">
-              The more context you provide, the better Singularity can act on your behalf.
+              The more context you provide, the better Autopilot can act on your behalf.
             </p>
           </div>
 
