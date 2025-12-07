@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { AutoEmailProcessor } from "@/components/autopilot/auto-processor";
 
 export default async function DashboardLayout({
   children,
@@ -20,7 +21,10 @@ export default async function DashboardLayout({
   return (
     <SidebarProvider>
       <DashboardSidebar user={session.user} />
-      <SidebarInset>{children}</SidebarInset>
+      <SidebarInset>
+        <AutoEmailProcessor />
+        {children}
+      </SidebarInset>
     </SidebarProvider>
   );
 }

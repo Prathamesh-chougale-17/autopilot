@@ -1,16 +1,13 @@
 "use client";
-
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { client } from "@/lib/orpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { ChevronRight, Mail } from "lucide-react";
 
 interface TaskItem {
   id: string;
@@ -34,10 +31,7 @@ interface TaskItem {
 }
 
 export function ApprovalsPanel() {
-  const queryClient = useQueryClient();
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editedSubject, setEditedSubject] = useState<string>("");
-  const [editedBody, setEditedBody] = useState<string>("");
+  const router = useRouter();
 
   const { data, isPending, isError, error } = useQuery<TaskItem[]>({
     queryKey: ["autopilot", "approvals"],
@@ -51,37 +45,21 @@ export function ApprovalsPanel() {
     refetchInterval: 5000,
   });
 
-  const approveMutation = useMutation({
-    mutationFn: ({
-      taskId,
-      modifiedSubject,
-      modifiedBody,
-    }: {
-      taskId: string;
-      modifiedSubject?: string;
-      modifiedBody?: string;
-    }) => client.ai.approveReply({ taskId, modifiedSubject, modifiedBody }),
-    onSuccess: () => {
-      setEditingTaskId(null);
-      queryClient.invalidateQueries({ queryKey: ["autopilot", "approvals"] });
-      queryClient.invalidateQueries({ queryKey: ["autopilot", "activity"] });
-    },
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: ({ taskId, reason }: { taskId: string; reason?: string }) =>
-      client.ai.rejectReply({ taskId, reason }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["autopilot", "approvals"] });
-      queryClient.invalidateQueries({ queryKey: ["autopilot", "activity"] });
-    },
-  });
+  const handleOpenApproval = (taskId: string) => {
+    router.push(`/dashboard/approvals/${taskId}`);
+  };
 
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>Pending Replies</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle>Pending Replies</CardTitle>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              Auto-processing enabled
+            </div>
+          </div>
           {data && data.length > 0 && (
             <Badge variant="destructive">{data.length} awaiting approval</Badge>
           )}
@@ -100,206 +78,52 @@ export function ApprovalsPanel() {
             </AlertDescription>
           </Alert>
         )}
-        {(approveMutation.isError || rejectMutation.isError) && (
-          <Alert variant="destructive">
-            <AlertDescription>Failed to update task</AlertDescription>
-          </Alert>
-        )}
         {data && data.length === 0 && (
-          <p className="text-sm text-muted-foreground">No replies awaiting approval.</p>
+          <p className="text-sm text-muted-foreground">
+            No replies awaiting approval.
+          </p>
         )}
         <ScrollArea className="h-[500px]">
-          <div className="space-y-4 pr-4">
+          <div className="space-y-2 pr-4">
             {data &&
               data.map((task) => (
-                <div key={task.id} className="rounded-lg border p-4 space-y-4">
-                  {/* Original Email Section */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold">📧 Incoming Email</h3>
-                      <div className="flex items-center gap-2">
-                        {task.classification?.priority && (
-                          <Badge
-                            variant={
-                              task.classification.priority === "high"
-                                ? "destructive"
-                                : "outline"
-                            }
-                          >
-                            {task.classification.priority}
-                          </Badge>
-                        )}
-                        {task.classification?.category && (
-                          <Badge variant="secondary">{task.classification.category}</Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="bg-muted/30 rounded-lg p-4 space-y-2">
-                      <div>
-                        <span className="text-xs font-medium text-muted-foreground">FROM:</span>
-                        <div className="font-medium text-sm mt-1">
-                          {String(task.input.from || "Unknown")}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-xs font-medium text-muted-foreground">SUBJECT:</span>
-                        <div className="font-medium text-sm mt-1">
-                          {String(task.input.subject || "(No subject)")}
-                        </div>
-                      </div>
-                      {task.classification?.keyPoints &&
-                        task.classification.keyPoints.length > 0 && (
-                          <div className="pt-2 border-t">
-                            <span className="text-xs font-medium text-muted-foreground">
-                              KEY POINTS:
-                            </span>
-                            <ul className="list-disc list-inside space-y-1 mt-1">
-                              {task.classification.keyPoints.map((point, i) => (
-                                <li key={i} className="text-sm text-muted-foreground">
-                                  {point}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                <div
+                  key={task.id}
+                  onClick={() => handleOpenApproval(task.id)}
+                  className="group flex items-center gap-3 p-3 rounded-lg border hover:border-primary hover:bg-accent/50 cursor-pointer transition-all"
+                >
+                  {/* Icon */}
+                  <div className="shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-950 flex items-center justify-center">
+                      <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
                   </div>
 
-                  {/* Draft Reply Section */}
-                  <div className="space-y-3 border-t pt-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold">
-                        ✉️ {task.draftReply?.body ? "AI Draft Reply" : "Compose Reply"}
-                      </h3>
-                      {task.draftReply?.tone && (
-                        <Badge variant="outline" className="text-xs">
-                          {task.draftReply.tone} tone
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-medium text-sm truncate">
+                        {String(task.input.from || "Unknown Sender")}
+                      </p>
+                      {task.classification?.priority === "high" && (
+                        <Badge variant="destructive" className="text-xs">
+                          High
+                        </Badge>
+                      )}
+                      {task.draftReply?.body && (
+                        <Badge variant="secondary" className="text-xs">
+                          Draft Ready
                         </Badge>
                       )}
                     </div>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {String(task.input.subject || "(No subject)")}
+                    </p>
+                  </div>
 
-                    {editingTaskId === task.id ? (
-                      <div className="space-y-3 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg p-4">
-                        <div>
-                          <label className="text-xs font-semibold text-muted-foreground">
-                            SUBJECT:
-                          </label>
-                          <Input
-                            value={editedSubject}
-                            onChange={(e) => setEditedSubject(e.target.value)}
-                            className="mt-1.5"
-                            placeholder="Reply subject"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-muted-foreground">
-                            MESSAGE:
-                          </label>
-                          <Textarea
-                            value={editedBody}
-                            onChange={(e) => setEditedBody(e.target.value)}
-                            rows={12}
-                            className="mt-1.5 text-sm font-normal"
-                            placeholder="Type your reply..."
-                          />
-                        </div>
-                        <div className="flex gap-2 pt-2">
-                          <Button
-                            size="sm"
-                            disabled={approveMutation.isPending || !editedBody.trim()}
-                            onClick={() => {
-                              approveMutation.mutate({
-                                taskId: task.id,
-                                modifiedSubject: editedSubject || undefined,
-                                modifiedBody: editedBody || undefined,
-                              });
-                            }}
-                          >
-                            {approveMutation.isPending ? "Sending..." : "✓ Send Reply"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setEditingTaskId(null)}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : task.draftReply?.body ? (
-                      <div className="space-y-3">
-                        <div className="bg-green-50/50 dark:bg-green-950/20 rounded-lg p-4 space-y-3">
-                          {task.draftReply.subject && (
-                            <div>
-                              <span className="text-xs font-semibold text-muted-foreground">
-                                SUBJECT:
-                              </span>
-                              <div className="font-medium text-sm mt-1">
-                                {task.draftReply.subject}
-                              </div>
-                            </div>
-                          )}
-                          <div className="border-t pt-3">
-                            <span className="text-xs font-semibold text-muted-foreground">
-                              MESSAGE:
-                            </span>
-                            <div className="text-sm whitespace-pre-wrap mt-2">
-                              {task.draftReply.body}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            disabled={approveMutation.isPending}
-                            onClick={() => {
-                              approveMutation.mutate({ taskId: task.id });
-                            }}
-                          >
-                            {approveMutation.isPending ? "Sending..." : "✓ Send as Draft"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setEditingTaskId(task.id);
-                              setEditedSubject(
-                                task.draftReply?.subject ||
-                                  `Re: ${task.input.subject || ""}`
-                              );
-                              setEditedBody(task.draftReply?.body || "");
-                            }}
-                          >
-                            ✏️ Edit & Customize
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={rejectMutation.isPending}
-                            onClick={() => rejectMutation.mutate({ taskId: task.id })}
-                          >
-                            {rejectMutation.isPending ? "..." : "✕ Discard"}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <div className="bg-muted/30 rounded-lg p-4 text-sm text-muted-foreground text-center italic">
-                          No AI draft generated. Click below to compose a reply manually.
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setEditingTaskId(task.id);
-                            setEditedSubject(`Re: ${task.input.subject || ""}`);
-                            setEditedBody("");
-                          }}
-                        >
-                          ✏️ Compose Reply
-                        </Button>
-                      </div>
-                    )}
+                  {/* Arrow */}
+                  <div className="shrink-0">
+                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
                   </div>
                 </div>
               ))}

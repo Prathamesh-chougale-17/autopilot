@@ -1,0 +1,18 @@
+name: Auto-Process Emails
+
+on:
+    schedule:
+        # Run every 10 minutes
+        - cron: "*/10 * * * *"
+    workflow_dispatch: # Allow manual trigger
+
+jobs:
+    auto-process:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Trigger auto-process endpoint
+              run: |
+                  curl -X GET "${{ secrets.APP_URL }}/api/cron/auto-process" \
+                    -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+                    -H "Content-Type: application/json"
