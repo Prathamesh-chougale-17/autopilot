@@ -244,7 +244,7 @@ export function GmailInbox() {
 
   return (
     <>
-      <Card>
+      <Card className="h-full flex flex-col border-none shadow-sm bg-transparent">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -297,29 +297,28 @@ export function GmailInbox() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 min-h-0 p-0 flex flex-col">
           {emailsLoading ? (
-            <div className="space-y-2">
+            <div className="space-y-2 p-6">
               {[...Array(5)].map((_, i) => (
                 <Skeleton key={i} className="h-16 w-full" />
               ))}
             </div>
           ) : emails.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
+            <div className="flex flex-col items-center justify-center py-8 text-center h-full">
               <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">No emails found</p>
             </div>
           ) : (
-            <ScrollArea className="h-[400px]">
-              <div className="space-y-1">
+            <ScrollArea className="flex-1 h-full">
+              <div className="space-y-1 p-6">
                 {emails.map((email: Email) => (
                   <div
                     key={email.id}
-                    className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                      email.isUnread
-                        ? "bg-primary/5 hover:bg-primary/10 font-medium"
-                        : "hover:bg-muted/50"
-                    } ${selectedEmail?.id === email.id ? "bg-muted" : ""}`}
+                    className={`p-3 rounded-lg cursor-pointer transition-colors border ${email.isUnread
+                        ? "bg-primary/5 border-primary/20 font-medium"
+                        : "hover:bg-muted/50 border-transparent"
+                      } ${selectedEmail?.id === email.id ? "bg-muted border-primary/30" : ""}`}
                     onClick={() => handleEmailClick(email)}
                   >
                     <div className="flex items-start justify-between gap-2">

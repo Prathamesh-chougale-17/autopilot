@@ -101,9 +101,9 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
                   <Bot className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">AI AutoPilot</span>
+                  <span className="truncate font-semibold">Singularity</span>
                   <span className="truncate text-xs text-muted-foreground">
-                    Business Automation
+                    Agent Mesh
                   </span>
                 </div>
               </Link>

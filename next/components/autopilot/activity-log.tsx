@@ -193,7 +193,7 @@ export function ActivityLogPanel() {
   });
 
   return (
-    <Card>
+    <Card className="h-full flex flex-col border-none shadow-sm bg-transparent">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -205,29 +205,31 @@ export function ActivityLogPanel() {
           )}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1 min-h-0 p-0 flex flex-col">
         {isPending && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
             <Spinner className="h-4 w-4" /> Loading activity...
           </div>
         )}
         {isError && (
-          <Alert variant="destructive">
-            <AlertDescription>
-              {(error as Error)?.message ?? "Failed to load activity"}
-            </AlertDescription>
-          </Alert>
+          <div className="p-6">
+            <Alert variant="destructive">
+              <AlertDescription>
+                {(error as Error)?.message ?? "Failed to load activity"}
+              </AlertDescription>
+            </Alert>
+          </div>
         )}
         {data && data.length === 0 && (
-          <p className="text-sm text-muted-foreground">No activity yet.</p>
+          <p className="text-sm text-muted-foreground p-6">No activity yet.</p>
         )}
-        <ScrollArea className="h-[300px]">
-          <div className="space-y-2 pr-4">
+        <ScrollArea className="flex-1 h-full">
+          <div className="space-y-2 p-6">
             {data &&
               data.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-start gap-3 rounded-md border p-3 text-sm hover:bg-muted/50 transition-colors"
+                  className="flex items-start gap-3 rounded-md border p-3 text-sm hover:bg-muted/50 transition-colors bg-card/60 backdrop-blur-sm"
                 >
                   <div className="mt-0.5">{getActionIcon(item.action)}</div>
                   <div className="flex-1 min-w-0 space-y-1">
