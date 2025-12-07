@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Mail,
   CheckSquare,
+  MessageSquare,
   Activity,
   BarChart3,
   Bot,
@@ -108,126 +109,195 @@ export default async function DashboardPage() {
           </Card>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-          {/* Live Activity Feed */}
-          <Card className="col-span-4 glass-card">
-            <CardHeader>
-              <CardTitle>Live Activity Feed</CardTitle>
-              <CardDescription>
-                Real-time actions taken by your agent mesh.
-              </CardDescription>
+        <h3 className="text-xl font-semibold tracking-tight">Active Integrations</h3>
+
+        {/* Integrations Status Grid */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {/* Gmail - Connected */}
+          <Card className="glass-card border-green-500/20 bg-green-500/5 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-3">
+              <span className="inline-flex items-center rounded-full bg-green-500/10 px-2 py-1 text-xs font-medium text-green-500 ring-1 ring-inset ring-green-500/20">
+                <CheckCircle2 className="mr-1 h-3 w-3" />
+                Connected
+              </span>
+            </div>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Mail className="h-5 w-5 text-red-500" />
+                Gmail
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-8">
-                {[
-                  {
-                    agent: "Email Agent",
-                    action: "Drafted reply to 'Partnership Inquiry'",
-                    time: "2 mins ago",
-                    icon: Mail,
-                    color: "text-blue-500",
-                    bg: "bg-blue-500/10"
-                  },
-                  {
-                    agent: "Finance Agent",
-                    action: "Generated invoice #INV-2024-001 for Acme Corp",
-                    time: "15 mins ago",
-                    icon: FileTextIcon,
-                    color: "text-green-500",
-                    bg: "bg-green-500/10"
-                  },
-                  {
-                    agent: "CRM Agent",
-                    action: "Updated contact info for Sarah Connor",
-                    time: "1 hour ago",
-                    icon: UsersIcon,
-                    color: "text-purple-500",
-                    bg: "bg-purple-500/10"
-                  },
-                  {
-                    agent: "Reporting Agent",
-                    action: "Compiled Weekly Sales Report",
-                    time: "3 hours ago",
-                    icon: BarChart3,
-                    color: "text-yellow-500",
-                    bg: "bg-yellow-500/10"
-                  },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center">
-                    <div className={`flex h-9 w-9 items-center justify-center rounded-full border ${item.bg} ${item.color}`}>
-                      <item.icon className="h-4 w-4" />
-                    </div>
-                    <div className="ml-4 space-y-1">
-                      <p className="text-sm font-medium leading-none">{item.agent}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {item.action}
-                      </p>
-                    </div>
-                    <div className="ml-auto font-medium text-xs text-muted-foreground">
-                      {item.time}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <p className="text-sm text-muted-foreground mb-4">Reading emails, drafting replies, and organizing inbox.</p>
             </CardContent>
           </Card>
 
-          {/* Pending Approvals */}
-          <Card className="col-span-3 glass-card">
-            <CardHeader>
-              <CardTitle>Pending Approvals</CardTitle>
-              <CardDescription>
-                Review and authorize high-confidence actions.
-              </CardDescription>
+          {/* WhatsApp - Connect */}
+          <Card className="glass-card hover:border-primary/50 transition-colors group">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <MessageSquare className="h-5 w-5 text-green-500" />
+                WhatsApp
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[
-                  {
-                    title: "Send Bulk Invoice",
-                    desc: "Send 5 invoices totaling $12,500",
-                    confidence: "98%",
-                  },
-                  {
-                    title: "Refund Request",
-                    desc: "Approve refund for Order #9921",
-                    confidence: "85%",
-                  },
-                  {
-                    title: "Publish Blog Post",
-                    desc: "Schedule 'AI Trends 2025' for tomorrow",
-                    confidence: "92%",
-                  },
-                ].map((item, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        {item.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.desc}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-xs font-bold text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
-                        {item.confidence}
-                      </div>
-                      <button className="h-8 w-8 inline-flex items-center justify-center rounded-md border hover:bg-accent">
-                        <ArrowUpRight className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                <Link href="/dashboard/approvals" className="block w-full text-center text-xs text-muted-foreground hover:text-primary mt-4">
-                  View all pending approvals
-                </Link>
-              </div>
+              <p className="text-sm text-muted-foreground mb-4">Automate customer support and order updates.</p>
+              <button className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8">
+                Connect
+              </button>
+            </CardContent>
+          </Card>
+
+          {/* Jira - Connect */}
+          <Card className="glass-card hover:border-primary/50 transition-colors group">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <CheckSquare className="h-5 w-5 text-blue-500" />
+                Jira
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">Create tasks and update issue statuses automatically.</p>
+              <button className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8">
+                Connect
+              </button>
+            </CardContent>
+          </Card>
+
+          {/* Slack - Connect */}
+          <Card className="glass-card hover:border-primary/50 transition-colors group">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <div className="flex h-5 w-5 items-center justify-center rounded bg-purple-500/20 text-purple-500 font-bold text-xs">#</div>
+                Slack
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">Monitor channels and send team notifications.</p>
+              <button className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8">
+                Connect
+              </button>
             </CardContent>
           </Card>
         </div>
+        {/* Live Activity Feed */}
+        <Card className="col-span-4 glass-card">
+          <CardHeader>
+            <CardTitle>Live Activity Feed</CardTitle>
+            <CardDescription>
+              Real-time actions taken by your agent mesh.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-8">
+              {[
+                {
+                  agent: "Email Agent",
+                  action: "Drafted reply to 'Partnership Inquiry'",
+                  time: "2 mins ago",
+                  icon: Mail,
+                  color: "text-blue-500",
+                  bg: "bg-blue-500/10"
+                },
+                {
+                  agent: "Finance Agent",
+                  action: "Generated invoice #INV-2024-001 for Acme Corp",
+                  time: "15 mins ago",
+                  icon: FileTextIcon,
+                  color: "text-green-500",
+                  bg: "bg-green-500/10"
+                },
+                {
+                  agent: "CRM Agent",
+                  action: "Updated contact info for Sarah Connor",
+                  time: "1 hour ago",
+                  icon: UsersIcon,
+                  color: "text-purple-500",
+                  bg: "bg-purple-500/10"
+                },
+                {
+                  agent: "Reporting Agent",
+                  action: "Compiled Weekly Sales Report",
+                  time: "3 hours ago",
+                  icon: BarChart3,
+                  color: "text-yellow-500",
+                  bg: "bg-yellow-500/10"
+                },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center">
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-full border ${item.bg} ${item.color}`}>
+                    <item.icon className="h-4 w-4" />
+                  </div>
+                  <div className="ml-4 space-y-1">
+                    <p className="text-sm font-medium leading-none">{item.agent}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {item.action}
+                    </p>
+                  </div>
+                  <div className="ml-auto font-medium text-xs text-muted-foreground">
+                    {item.time}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Pending Approvals */}
+        <Card className="col-span-3 glass-card">
+          <CardHeader>
+            <CardTitle>Pending Approvals</CardTitle>
+            <CardDescription>
+              Review and authorize high-confidence actions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[
+                {
+                  title: "Send Bulk Invoice",
+                  desc: "Send 5 invoices totaling $12,500",
+                  confidence: "98%",
+                },
+                {
+                  title: "Refund Request",
+                  desc: "Approve refund for Order #9921",
+                  confidence: "85%",
+                },
+                {
+                  title: "Publish Blog Post",
+                  desc: "Schedule 'AI Trends 2025' for tomorrow",
+                  confidence: "92%",
+                },
+              ].map((item, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium leading-none">
+                      {item.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.desc}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs font-bold text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
+                      {item.confidence}
+                    </div>
+                    <button className="h-8 w-8 inline-flex items-center justify-center rounded-md border hover:bg-accent">
+                      <ArrowUpRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <Link href="/dashboard/approvals" className="block w-full text-center text-xs text-muted-foreground hover:text-primary mt-4">
+                View all pending approvals
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </>
   );
